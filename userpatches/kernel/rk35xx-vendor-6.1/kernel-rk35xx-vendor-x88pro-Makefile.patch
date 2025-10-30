@@ -1,0 +1,23 @@
+---
+ arch/arm64/boot/dts/rockchip/Makefile            |   1 +
+
+diff --git a/arch/arm64/boot/dts/rockchip/Makefile b/arch/arm64/boot/dts/rockchip/Makefile
+index adcadbafbf63..e4c718fbddf3 100644
+--- a/arch/arm64/boot/dts/rockchip/Makefile
++++ b/arch/arm64/boot/dts/rockchip/Makefile
+@@ -113,10 +113,11 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-hinlink-ht2.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3566-h96max-v56.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-mangopi-m28k.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-radxa-e20c.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-rock-2a.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-rock-2f.dtb
++dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-x88pro.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3562-dictpen-test3-v20.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3562-evb1-lp4x-v10.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3562-evb1-lp4x-v10-linux.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3562-evb1-lp4x-v10-linux-amp.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3562-evb1-lp4x-v10-lvds.dtb
+
+-- 
+Created with Armbian build tools https://github.com/armbian/build
+

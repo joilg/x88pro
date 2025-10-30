@@ -1,2 +1,118 @@
-# x88pro
-Armbian for X88PRO13 TV Box
+# Armbian for X88PRO13 TV Box
+
+### WORK IN PROGRESS
+
+
+## Background
+
+X88PRO13 TV box is manufacted by Shenzhen Hugsun Technology Co., Ltd. 
+It is sold under various brand names, eg. LIPA, RUPA X88pro13. Iinstalled operating system is Android 13.
+This repository is used to install and run Armbian operating system on the TV box.
+
+
+
+Specifications:
+
+    CPU: RK3528 Quad-core 64-bit Cortex-A53
+    GPU: Mali 450 MP2
+    FLASH: EMMC 16GB
+    SDRAM: 2GB
+    USB: 1 Type-A USB3.0, 1 Type-A USB2.0
+    LAN: Ethernet: 10/100M standard RJ-45
+    Bluetooth-compatible: V5.0
+    Wireless: 2.4G/5G dual-band WiFi 802.11 a/b/g/n/ac/ax
+    Card reader: TF card, maximum support 64GB (not included)
+    DisplayPort: HD
+    HD: HD 2.0b, for 60Hz 4k
+    Power indicator (LED): Standby: red
+    Remote control: IR
+
+### Status
+tested with Armbian GIT revision f2c908119d39e2c385c3ad6aa005cd075fd4eaf7
+
+- HDMI-video: ok
+- HDMI-audio: not tested
+- Wi-Fi: ok
+- Bluetooth:  doesn't work right away. The reason hasn't been investigated yet.  
+- IR Remote Control:	some work to do       
+-
+- some Tests required
+
+ 
+## known issues
+
+- wake up from Suspend not posible 
+
+
+## Building Armbian 
+
+Rockchip rk3528 is now supported by Armbian.  Use my patch to build Image for X88Pro13.
+
+### Download armbian-build:
+$ git clone --depth=1 https://github.com/armbian/build build
+
+### apply patch
+$ git clone --depth=1 https://github.com/joilg/x88pro x88pro
+$ cp -R ./x88pro/* build/
+
+### building server image with console interface
+
+$ cd build/
+$ ./compile.sh build BOARD=x88pro BRANCH=vendor BUILD_DESKTOP=no BUILD_MINIMAL=no KERNEL_CONFIGURE=no RELEASE=noble
+
+### building desktop image  
+
+$ cd build
+$ ./compile.sh build BOARD=x88pro BRANCH=vendor BUILD_DESKTOP=yes BUILD_MINIMAL=no DESKTOP_APPGROUPS_SELECTED='browsers desktop_tools editors internet multimedia programming remote_desktop' DESKTOP_ENVIRONMENT=gnome DESKTOP_ENVIRONMENT_CONFIG_NAME=config_base KERNEL_CONFIGURE=no RELEASE=noble
+
+## Install
+
+#### Install Armbian on MicroSD Card
+
+after building, find the compressed image in build/output/images
+
+ls ./output/images/*.img
+./output/images/Armbian-unofficial_25.11.0-trunk_X88pro_noble_vendor_6.1.115.img
+./output/images/Armbian-unofficial_25.11.0-trunk_X88pro_noble_vendor_6.1.115_gnome_desktop.img
+
+Write the image with a tool like USBImager to your micro-SD card
+due some problems I cannot recommend balenaEtcher
+Insert mmc into the mmc slot on TV Box
+
+# Usage
+
+Plugin Power to the TV Box. Follow one of three options to log into Armbian console.
+
+## 1.) using HDMI monitor and USB Keyboard 
+
+Power the TV Box. Follow instruction on HDMI Monitor. 
+
+## 2.) Log into console with serial interface 
+
+Open Case of the TV box. There are three solder pads on front side of the cuircuit board. Connect USB Serial Interface
+Use Putty to log in. Baudrate is 1500000 bps
+
+## 3.) connect via ssh
+ssh is enabled by default. Connect network cable to the Box
+$ ssh ssh root@x88pro
+
+#### Update Armbian
+
+$ arbian-Update
+
+#### Install Armbian to EMMC
+
+
+
+## Maintainers
+
+[@joilg](https://github.com/joilg).
+
+## Contributing
+
+Feel free contribute.  
+
+
+## License
+
+[MIT](LICENSE) © joilg
