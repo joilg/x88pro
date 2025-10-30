@@ -6,7 +6,7 @@
 ## Background
 
 X88PRO13 TV box is manufacted by Shenzhen Hugsun Technology Co., Ltd. 
-It is sold under various brand names, eg. LIPA, RUPA X88pro13. Iinstalled operating system is Android 13.
+It is sold under various brand names, eg. LIPA, RUPA X88pro13. Installed operating system is Android 13.
 This repository is used to install and run Armbian operating system on the TV box.
 
 
@@ -52,7 +52,7 @@ Rockchip rk3528 is now supported by Armbian.  Use my patch to build Image for X8
 $ git clone --depth=1 https://github.com/armbian/build build
 
 ### apply patch
-$ git clone --depth=1 https://github.com/joilg/x88pro x88pro
+$ git clone --depth=1 https://github.com/joilg/x88pro x88pro  
 $ cp -R ./x88pro/* build/
 
 ### building server image with console interface
