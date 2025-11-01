@@ -5,14 +5,13 @@
 
 ## Background
 
-X88PRO13 TV box is manufacted by Shenzhen Hugsun Technology Co., Ltd. 
-It is sold under various brand names, eg. LIPA, RUPA X88pro13. Installed operating system is Android 13.
-This repository is used to install and run Armbian operating system on the TV box.
+	X88PRO13 TV box is manufacted by Shenzhen Hugsun Technology Co., Ltd. 
+	It is sold under various brand names, eg. LIPA, RUPA X88pro13. Installed operating system is Android 13.
+	This repository is used to install and run Armbian operating system on the TV box.
 
 
 
-Specifications:
-
+### Specifications:  
     CPU: RK3528 Quad-core 64-bit Cortex-A53
     GPU: Mali 450 MP2
     FLASH: EMMC 16GB
@@ -32,10 +31,12 @@ tested with Armbian GIT revision f2c908119d39e2c385c3ad6aa005cd075fd4eaf7
 
 - HDMI-video: ok
 - HDMI-audio: not tested
-- Wi-Fi: ok
+- LAN: ok
+- Wi-Fi: ok 
+- Wi-Fi wakeup, suspend not ok, some debug errors on port access for aic8801 device
 - Bluetooth:  doesn't work right away. The reason hasn't been investigated yet.  
 - IR Remote Control:	some work to do       
--
+- 
 - some Tests required
 
  
@@ -46,24 +47,24 @@ tested with Armbian GIT revision f2c908119d39e2c385c3ad6aa005cd075fd4eaf7
 
 ## Building Armbian 
 
-Rockchip rk3528 is now supported by Armbian.  Use my patch to build Image for X88Pro13.
+Rockchip rk3528 is now supported by Armbian. Use my patch to build Image for X88Pro13.
 
 ### Download armbian-build:
-$ git clone --depth=1 https://github.com/armbian/build build
+	$ git clone --depth=1 https://github.com/armbian/build build
 
 ### apply patch
-$ git clone --depth=1 https://github.com/joilg/x88pro x88pro  
-$ cp -R ./x88pro/* build/
+	$ git clone --depth=1 https://github.com/joilg/x88pro x88pro  
+	$ cp -R ./x88pro/* build/
 
 ### building server image with console interface
 
-$ cd build/
-$ ./compile.sh build BOARD=x88pro BRANCH=vendor BUILD_DESKTOP=no BUILD_MINIMAL=no KERNEL_CONFIGURE=no RELEASE=noble
+	$ cd build/  
+	$ ./compile.sh build BOARD=x88pro BRANCH=vendor BUILD_DESKTOP=no BUILD_MINIMAL=no KERNEL_CONFIGURE=no RELEASE=noble
 
 ### building desktop image  
 
-$ cd build
-$ ./compile.sh build BOARD=x88pro BRANCH=vendor BUILD_DESKTOP=yes BUILD_MINIMAL=no DESKTOP_APPGROUPS_SELECTED='browsers desktop_tools editors internet multimedia programming remote_desktop' DESKTOP_ENVIRONMENT=gnome DESKTOP_ENVIRONMENT_CONFIG_NAME=config_base KERNEL_CONFIGURE=no RELEASE=noble
+	$ cd build  
+	$ ./compile.sh build BOARD=x88pro BRANCH=vendor BUILD_DESKTOP=yes BUILD_MINIMAL=no DESKTOP_APPGROUPS_SELECTED='browsers desktop_tools editors internet multimedia programming remote_desktop' DESKTOP_ENVIRONMENT=gnome DESKTOP_ENVIRONMENT_CONFIG_NAME=config_base KERNEL_CONFIGURE=no RELEASE=noble
 
 ## Install
 
@@ -71,38 +72,44 @@ $ ./compile.sh build BOARD=x88pro BRANCH=vendor BUILD_DESKTOP=yes BUILD_MINIMAL=
 
 after building, find the compressed image in build/output/images
 
-ls ./output/images/*.img
-./output/images/Armbian-unofficial_25.11.0-trunk_X88pro_noble_vendor_6.1.115.img
-./output/images/Armbian-unofficial_25.11.0-trunk_X88pro_noble_vendor_6.1.115_gnome_desktop.img
+	$ ls ./output/images/*.img  
+	./output/images/Armbian-unofficial_25.11.0-trunk_X88pro_noble_vendor_6.1.115.img  
+	./output/images/Armbian-unofficial_25.11.0-trunk_X88pro_noble_vendor_6.1.115_gnome_desktop.img  
 
-Write the image with a tool like USBImager to your micro-SD card
-due some problems I cannot recommend balenaEtcher
-Insert mmc into the mmc slot on TV Box
+	Write the image with a tool like USBImager or balenaEtcher to your micro-SD card
+	Insert mmc into the mmc slot on TV Box
 
 # Usage
 
-Plugin Power to the TV Box. Follow one of three options to log into Armbian console.
+	Plugin Power to the TV Box. Follow one of three options to log into Armbian console.
 
 ## 1.) using HDMI monitor and USB Keyboard 
 
-Power the TV Box. Follow instruction on HDMI Monitor. 
+	Connect HDMI to Monitor
+	connect USB Keyboard to the USB2 slot.
+	Follow instruction from Monitor.  You  have to insert a new root Password.
 
 ## 2.) Log into console with serial interface 
 
-Open Case of the TV box. There are three solder pads on front side of the cuircuit board. Connect USB Serial Interface
-Use Putty to log in. Baudrate is 1500000 bps
+	Open Case of the TV box. There are three solder pads on front side of the cuircuit board.
+	from corner pin:  TX, RX, GND   3.3V
+	Connect 3.3V USB Serial Interface to these Pins
+	Use Putty to log in. Baudrate is 1500000 bps
 
 ## 3.) connect via ssh
-ssh is enabled by default. Connect network cable to the Box
-$ ssh ssh root@x88pro
+
+	ssh is enabled by default. Connect network cable to the Box
+	$ ssh ssh root@x88pro
 
 #### Update Armbian
 
-$ arbian-Update
+	$ arbian-Update
 
 #### Install Armbian to EMMC
 
-
+	TOTO
+	
+	
 
 ## Maintainers
 
