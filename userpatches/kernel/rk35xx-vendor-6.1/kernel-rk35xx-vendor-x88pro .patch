@@ -1,14 +1,3 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: John Doe <john.doe@somewhere.on.planet>
-Date: Thu, 18 Sep 2025 13:43:16 +0000
-Subject: Patching kernel rk35xx files arch/arm64/boot/dts/rockchip/Makefile
- arch/arm64/boot/dts/rockchip/rk3528-x88pro.dts
-
-Signed-off-by: John Doe <john.doe@somewhere.on.planet>
----
- arch/arm64/boot/dts/rockchip/rk3528-x88pro.dts | 677 ++++++++++
- 1 files changed, 677 insertions(+)
-
 diff --git a/arch/arm64/boot/dts/rockchip/rk3528-x88pro.dts b/arch/arm64/boot/dts/rockchip/rk3528-x88pro.dts
 new file mode 100644
 index 000000000000..2f3c10b1d71b
@@ -100,16 +89,6 @@ index 000000000000..2f3c10b1d71b
 +		regulator-max-microvolt = <1200000>;
 +		vin-supply = <&vcc5v0_sys>;
 +	};
-+
-+
-+
-+
-+
-+
-+
-+
-+
-+
 +
 +	vcc5v0_host: vcc5v0-host-regulator {
 +		compatible = "regulator-fixed";
@@ -240,7 +219,7 @@ index 000000000000..2f3c10b1d71b
 +	wireless_wlan: wireless-wlan {
 +		compatible = "wlan-platdata";
 +		rockchip,grf = <&grf>;
-+		wifi_chip_type = "AIC8801";
++		/* wifi_chip_type = "AIC8801"; */
 +		pinctrl-names = "default";
 +		pinctrl-0 = <&wifi_host_wake_irq>;
 +		WIFI,host_wake_irq = <&gpio1 RK_PA7 GPIO_ACTIVE_HIGH>;    //GPIO_ACTIVE_HIGH 0
@@ -257,17 +236,31 @@ index 000000000000..2f3c10b1d71b
 +        status = "okay";
 +    };
 +
++	adc-keys {
++		status = "okay";
++		compatible = "adc-keys";
++		io-channels = <&saradc 0x01>;
++		io-channel-names = "buttons";
++		keyup-threshold-microvolt = <1800000>;
++		poll-interval = <100>;
 +
++		vol-up-key {
++			label = "volume up";
++			linux,code = <0x73>;
++			press-threshold-microvolt = <1750>;
++		};
++	};
 +
++		seekwcn_boot {
++			compatible = "seekwave,sv6160";
++			dma_type = <0x01>;
++			status = "okay";
++		};
 +
-+
-+
-+
-+
-+
-+
-+
-+
++		sky-storage {
++			compatible = "rockchip,hgs_vendor_storage";
++			status = "okay";
++		};
 +
 +	gpio_leds: gpio-leds {
 +		compatible = "gpio-leds";
@@ -286,24 +279,13 @@ index 000000000000..2f3c10b1d71b
 +			retain-state-shutdown;
 +		};
 +	};
-+
 +};
 +
 +&gmac0 {
-+
-+
-+
-+
-+
++	tx_delay = <0x30>;
++	/* rx_delay = <0x3f>; */
 +	status = "okay";
 +};
-+
-+
-+
-+
-+
-+
-+
 +
 +&pwm1 {
 +	status = "okay";
@@ -314,24 +296,16 @@ index 000000000000..2f3c10b1d71b
 +};
 +
 +&pwm3 {
-+	status = "okay";
-+	compatible = "rockchip,remotectl-pwm";
++	// compatible = "rockchip,remotectl-pwm";
++	compatible = "rockchip,remotectl-pwm-v4";
 +	pinctrl-names = "default";
-+	pinctrl-0 = <&pwm3m1_pins>;
++	pinctrl-0 = <&pwm3m0_pins>;
++	interrupts = <GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>;
 +	remote_pwm_id = <3>;
 +	handle_cpu_id = <1>;
-+	remote_support_psci = <0x00>;
-+	/* ir_key1{
-+		rockchip,usercode = <0xf708>;
-+		rockchip,key_table = {
-+			{0xeb, KEY_POWER},        // Power Control
-+			//{0xa3, 250},              // Settings
-+			{0xec, KEY_MENU},         // Menu
-+			{0xfc, KEY_UP},           // Up
-+			{0xfd, KEY_DOWN},         // Down
-+			// Vol
-+		};
-+	};  */
++	remote_support_psci = <0>;
++ wakeup-source;
++	status = "okay";
 +	ir_key5 {
 +		rockchip,usercode = <0xf708>;
 +		rockchip,key_table = <0xf5 0x71 0xfc 0x8d 0xf4 0x74 0x8c 0xb7 0x8b 0xb8 0x8a 0xb9 0x89 0xba 0xfa 0xbb 0xbd 0x66 0xed 0x67 0xea 0x69 0xe1 0xe8 0xeb 0x6a 0xbe 0x9e 0xec 0x6c 0xe8 0x8b 0xf1 0x73 0xef 0x68 0xe3 0x72 0xee 0x6d 0x8f 0x184 0x8e 0x80>;
@@ -463,7 +437,7 @@ index 000000000000..2f3c10b1d71b
 +};
 +
 +&rkvdec {
-+	status = "okay";
++	status = "disabled";
 +};
 +
 +&rkvdec_mmu {
@@ -471,7 +445,7 @@ index 000000000000..2f3c10b1d71b
 +};
 +
 +&rkvenc {
-+	status = "okay";
++	status = "disabled";
 +};
 +
 +&rkvenc_mmu {
@@ -652,13 +626,13 @@ index 000000000000..2f3c10b1d71b
 +};
 +
 +&usbdrd_dwc3 {
-+	dr_mode = "otg";
++	dr_mode = "host";
 +	extcon = <&usb2phy>;
 +	phys = <&u2phy_otg>;
 +	phy-names = "usb2-phy";
 +	interrupts = <GIC_SPI 152 IRQ_TYPE_LEVEL_HIGH>;
 +	resets = <&cru SRST_ARESETN_USB3OTG>;
-	reset-names = "usb3-otg";
++	reset-names = "usb3-otg";
 +	maximum-speed = "high-speed";
 +	snps,dis_u2_susphy_quirk;
 +	snps,usb2-lpm-disable;
@@ -670,23 +644,17 @@ index 000000000000..2f3c10b1d71b
 +	pinctrl-names = "default";
 +	pinctrl-0 = <&i2c1m0_xfer>;
 +
-+
-+
-+
 +	hym8563: hym8563@51 {
 +		compatible = "haoyu,hym8563";
-+		reg = <0x51>;
 +		pinctrl-names = "default";
 +		pinctrl-0 = <&hym8563_irq>;
 +		// irq_gpio = <&gpio4 RK_PB2 0x02>;
-+		status = "okay";
 +		interrupt-parent = <&gpio4>;
 +		interrupts = <RK_PB2 IRQ_TYPE_EDGE_FALLING>;
 +		wakeup-source;
 +		#clock-cells = <0>;
++		status = "disabled";
 +	};
-+
-+
 +};
 +
 +&pinctrl {
@@ -723,9 +691,38 @@ index 000000000000..2f3c10b1d71b
 +	hym8563 {
 +		hym8563_irq: hym8563-irq {
 +			rockchip,pins = <4 RK_PB2 RK_FUNC_GPIO &pcfg_pull_none>;
++			irq_gpio = <&gpio4 RK_PB2 IRQ_TYPE_EDGE_FALLING>;	
 +		};
 +	};
 +};
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
++
 +
 +
 -- 

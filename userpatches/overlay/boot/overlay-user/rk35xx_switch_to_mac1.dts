@@ -1,0 +1,26 @@
+/dts-v1/;
+/plugin/;
+
+/* enable x88pro Front Display 
+ * 	install:  cd /boot/overlay-user     
+  *             sudo armbian-add-overlay rk35xx_openvfd.dts 
+  *				sudo reboot  
+*/
+
+/ {
+    compatible = "rockchip,rk3528";
+
+	fragment@0 {
+		target = <&gmac0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+	fragment@1 {
+		target = <&gmac1>;
+		__overlay__ {
+			status = "okay";
+		};
+    };
+};

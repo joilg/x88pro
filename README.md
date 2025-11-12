@@ -28,43 +28,33 @@
 
 ### Status
 tested with Armbian GIT revision f2c908119d39e2c385c3ad6aa005cd075fd4eaf7
-
-- HDMI-video: ok
-- HDMI-audio: not tested
-- LAN: ok
-- Wi-Fi: ok 
-- Wi-Fi wakeup, suspend not ok, some debug errors on port access for aic8801 device
-- Bluetooth:  doesn't work right away. The reason hasn't been investigated yet.  
-- IR Remote Control:	some work to do       
-- 
+HDMI, LAN, WiFi is OK
+ 
 - some Tests required
 
  
-## known issues
-
-- wake up from Suspend not posible 
-
 
 ## Building Armbian 
 
 Rockchip rk3528 is now supported by Armbian. Use my patch to build Image for X88Pro13.
 
-### Download armbian-build:
-	$ git clone --depth=1 https://github.com/armbian/build build
+### Download Patches and Armbian Build 
 
-### apply patch
+```bash
+	$ git clone --depth=1 https://github.com/armbian/build build
 	$ git clone --depth=1 https://github.com/joilg/x88pro x88pro  
-	$ cp -R ./x88pro/* build/
+	$ cp -R ./x88pro/userpatches build/
+.```
 
 ### building server image with console interface
 
 	$ cd build/  
-	$ ./compile.sh build BOARD=x88pro BRANCH=vendor BUILD_DESKTOP=no BUILD_MINIMAL=no KERNEL_CONFIGURE=no RELEASE=noble
+	$ ./compile.sh x88pro
 
 ### building desktop image  
 
 	$ cd build  
-	$ ./compile.sh build BOARD=x88pro BRANCH=vendor BUILD_DESKTOP=yes BUILD_MINIMAL=no DESKTOP_APPGROUPS_SELECTED='browsers desktop_tools editors internet multimedia programming remote_desktop' DESKTOP_ENVIRONMENT=gnome DESKTOP_ENVIRONMENT_CONFIG_NAME=config_base KERNEL_CONFIGURE=no RELEASE=noble
+	$ ./compile.sh x88pro_desktop build BOARD=x88pro BRANCH=vendor BUILD_DESKTOP=yes BUILD_MINIMAL=no DESKTOP_APPGROUPS_SELECTED='browsers desktop_tools editors internet multimedia programming remote_desktop' DESKTOP_ENVIRONMENT=gnome DESKTOP_ENVIRONMENT_CONFIG_NAME=config_base KERNEL_CONFIGURE=no RELEASE=noble
 
 ## Install
 
@@ -105,10 +95,9 @@ after building, find the compressed image in build/output/images
 
 	$ arbian-Update
 
-#### Install Armbian to EMMC
 
-	TOTO
-	
+### Enable 2nd USB port as host
+
 	
 
 ## Maintainers

@@ -1,0 +1,42 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+compatible = "rockchip,rk3528";
+
+    fragment@0 {
+        target-path = "/";
+        __overlay__ {
+			seekwcn_boot {
+				compatible = "seekwave,sv6160";
+				dma_type = <0x01>;
+				status = "okay";
+			};
+		};
+	};
+
+    fragment@1 {
+        target-path = "/";
+        __overlay__ {
+			sky-storage {
+				compatible = "rockchip,hgs_vendor_storage";
+				status = "okay";
+			};
+		};
+	};
+
+	fragment@2 {
+		target = <&wireless-wlan>;
+		__overlay__ {
+			wifi_chip_type = "SV6160";
+		};
+	};
+
+	fragment@3 {
+		target = <&wireless-bluetooth>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+
+};
