@@ -1,0 +1,24 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "rockchip,rk3528";
+
+    fragment@0 {
+        target = <&spi0>;
+        __overlay__ {
+            status = "okay";
+
+			led-controller@0 {
+					compatible = "titanmec,tm1628";
+					reg = <0>;
+					spi-3-wire;
+					spi-lsb-first;
+					spi-max-frequency = <500000>;
+					grid = /bits/ 8 <4 3 2 1>;
+					segment-mapping = /bits/ 8 <4 5 6 1 2 3 7>;
+				};
+			};
+		};
+	};
+

@@ -27,7 +27,7 @@
     Remote control: IR
 
 ### Status
-tested with Armbian GIT revision f2c908119d39e2c385c3ad6aa005cd075fd4eaf7
+tested with Armbian build v26.2.0-trunk.410
 HDMI, LAN, WiFi is OK
  
 - some Tests required
@@ -66,12 +66,12 @@ after building, find the compressed image in build/output/images
 	./output/images/Armbian-unofficial_25.11.0-trunk_X88pro_noble_vendor_6.1.115.img  
 	./output/images/Armbian-unofficial_25.11.0-trunk_X88pro_noble_vendor_6.1.115_gnome_desktop.img  
 
-	Write the image with a tool like USBImager or balenaEtcher to your micro-SD card
+	Write the image with Armbian Imager to-SD card
 	Insert mmc into the mmc slot on TV Box
 
 # Usage
 
-	Plugin Power to the TV Box. Follow one of three options to log into Armbian console.
+	Plugin the 5V Powersupply  to the TV Box. Follow one of three options to log into Armbian console.
 
 ## 1.) using HDMI monitor and USB Keyboard 
 
@@ -98,7 +98,9 @@ after building, find the compressed image in build/output/images
 
 ### Enable 2nd USB port as host
 
-	
+### EMMC
+ 
+  Armbian build do not support writing to eMMC for TV Boxes.  Do not use  armbian-install to flash eMMC! 
 
 ## Maintainers
 
@@ -106,7 +108,7 @@ after building, find the compressed image in build/output/images
 
 ## Contributing
 
-Feel free contribute.  
+Feel free contribute.  Tests are desired
 
 
 ## License

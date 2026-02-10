@@ -1,0 +1,35 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+compatible = "rockchip,rk3528";
+
+metadata {
+		title = "Enable rk-fiq-debugger";
+		compatible = "rockchip,rk3528";
+		category = "misc";
+		exclusive = " ";
+		description = "Disable UART0";
+	};
+
+	fragment@0 {
+		target = <&chosen>;
+		__overlay__ {
+			bootargs = "earlycon=uart8250,mmio32,0xfe660000 console=ttyFIQ0 ";
+		};
+	};
+
+	fragment@1 {
+		target = <&fiq_debugger>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+
+	fragment@2 {
+		target = <&uart0>;
+		__overlay__ {
+			status = "disabled";
+		};
+	};
+};

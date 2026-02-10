@@ -2,19 +2,22 @@
 BOARD_NAME="Hugsun X88pro"
 BOARDFAMILY="rk35xx"
 BOOTCONFIG="x88pro_rk3528_defconfig"
-KERNEL_TARGET="vendor"
+KERNEL_TARGET="edge,vendor"
 FULL_DESKTOP="yes"
 BOOT_LOGO="desktop"
 BOOT_FDT_FILE="rockchip/rk3528-x88pro.dtb"
 BOOT_SCENARIO="spl-blobs"
 BOOT_SUPPORT_SPI="yes"
 BOOT_SPI_RKSPI_LOADER="yes"
+declare -g BOOTSCRIPT="boot-rk35xx-ttyS0.cmd:boot.cmd"
 IMAGE_PARTITION_TABLE="gpt"
+#declare -g SERIALCON="ttyS0"
+#declare -g SRC_CMDLINE="console=ttyS0,1500000 earlyprintk earlycon=snps,dw-apb-uart,ff9f0000  loglevel=7 "   
 BOOTFS_TYPE="ext4"
-enable_extension "radxa-aic8800"
 AIC8800_TYPE="sdio"
+enable_extension "radxa-aic8800"
 
-PACKAGE_LIST_BOARD="rfkill bluetooth bluez bluez-tools"
+PACKAGE_LIST_BOARD="rfkill bluetooth bluez bluez-tools bluez-obexd"
 
 function post_family_tweaks_bsp__aic8800_wireless() {
 	display_alert "$BOARD" "Installing AIC8800 Tweaks" "info"
@@ -51,6 +54,17 @@ function post_family_tweaks__enable_aic8800_bluetooth_service() {
 		chroot_sdcard systemctl --no-reload enable aic-bluetooth.service
 	else
 		display_alert "$BOARD" "aic-bluetooth.service not found in image; skipping enable" "warn"
+	fi
+}
+
+# When not using vendor, set use ttyS0 as default console in bootscript
+function post_family_config__x88_set_serial_console_for_edge() {
+	if [[ "${BRANCH}" == vendor ]]; then
+		display_alert "$BOARD" "Using vendor kernel; keeping default console settings" "info"
+	else
+		display_alert "$BOARD" "Setting default console to serial ttyS0 for mainline kernel bootscript" "info"
+		declare -g BOOTSCRIPT="boot-rockchip64-ttyS0.cmd:boot.cmd"
+		declare -g SERIALCON="ttyS0"
 	fi
 }
 
