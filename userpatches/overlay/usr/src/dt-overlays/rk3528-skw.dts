@@ -1,0 +1,30 @@
+/dts-v1/;
+/plugin/;
+
+/* enable x88pro13  V1.4  dt wifi overlay for ea6521 wifi chip 
+ * 	install:  cd /usr/src/dt-overlays/  &&  sudo armbian-add-overlay rk3528-skw.dts 
+  *				sudo reboot  
+  * test:      cat /proc/device-tree/seekwcn_boot/ 
+ */
+
+
+/ {
+	compatible = "rockchip,rk3528";
+
+    fragment@0 {
+        target = <&seekwcn_boot>;
+        __overlay__ {
+			compatible = "seekwave,sv6160";
+			dma_type = <0x01>;
+			skw_iram_path = "/lib/firmware/SWT6621_IRAM_SDIO.bin";
+			skw_dram_path = "/lib/firmware/SWT6621_DRAM_SDIO.bin";
+			bt_antenna = <0>;   /* no BT_antenna setting */
+			// seekwave_nv_name = "SEEKWAVE_NV_SWT6652.bin";
+			gpio_host_wake = <50>;
+			gpio_chip_wake = <49>; 
+			gpio_chip_en =	  <38>; 
+			pinctrl-names = "default";
+			status = "okay";
+		};
+	};
+};

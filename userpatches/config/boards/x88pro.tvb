@@ -1,8 +1,11 @@
-# Rockchip RK3528 quad core 1-8GB SoC GBe eMMC PCIE2.0/USB3
+# Rockchip RK3528 quad core 1-8GB SoC GBe eMMC USB3
 BOARD_NAME="Hugsun X88pro"
+BOARD_VENDOR="rockchip"
 BOARDFAMILY="rk35xx"
 BOOTCONFIG="x88pro_rk3528_defconfig"
-KERNEL_TARGET="edge,vendor"
+BOARD_MAINTAINER="joilg"
+INTRODUCED="2026"
+KERNEL_TARGET="vendor,current,edge"
 FULL_DESKTOP="yes"
 BOOT_LOGO="desktop"
 BOOT_FDT_FILE="rockchip/rk3528-x88pro.dtb"
@@ -15,9 +18,33 @@ IMAGE_PARTITION_TABLE="gpt"
 #declare -g SRC_CMDLINE="console=ttyS0,1500000 earlyprintk earlycon=snps,dw-apb-uart,ff9f0000  loglevel=7 "   
 BOOTFS_TYPE="ext4"
 AIC8800_TYPE="sdio"
-enable_extension "radxa-aic8800"
+enable_extension "radxa-aic8800" 
 
 PACKAGE_LIST_BOARD="rfkill bluetooth bluez bluez-tools bluez-obexd"
+
+# Mainline kernel (current/edge) uses a different DTB filename than vendor kernel
+# and RK3528 debug UART is UART0 (ttyS0), not UART2 (ttyS2) like other RK35xx SoCs
+function post_family_config__nanopi_zero2_mainline() {
+	case "${BRANCH}" in
+		current|edge)
+			declare -g BOOT_FDT_FILE="rockchip/rk3528-x88pro.dtb"
+			declare -g SERIALCON="ttyS0"
+			display_alert "$BOARD" "Using ${BOOT_FDT_FILE} and SERIALCON=${SERIALCON} for ${BRANCH}" "info"
+			;;
+	esac
+}
+
+# Patch boot script: RK3528 X88pro uses UART0 (ttyS0) for serial console, not UART2 (ttyS2)
+function post_family_tweaks__x88pro_serial_console() {
+	case "${BRANCH}" in
+		current|edge)
+			display_alert "$BOARD" "Adjusting boot.cmd serial console to ttyS0 for ${BRANCH}" "info"
+			sed -i 's/console=ttyS2,1500000/console=ttyS0,1500000/g' "${SDCARD}"/boot/boot.cmd
+			mkimage -C none -A arm -T script -d "${SDCARD}"/boot/boot.cmd "${SDCARD}"/boot/boot.scr
+			;;
+	esac
+}
+
 
 function post_family_tweaks_bsp__aic8800_wireless() {
 	display_alert "$BOARD" "Installing AIC8800 Tweaks" "info"
@@ -58,13 +85,13 @@ function post_family_tweaks__enable_aic8800_bluetooth_service() {
 }
 
 # When not using vendor, set use ttyS0 as default console in bootscript
-function post_family_config__x88_set_serial_console_for_edge() {
-	if [[ "${BRANCH}" == vendor ]]; then
-		display_alert "$BOARD" "Using vendor kernel; keeping default console settings" "info"
-	else
-		display_alert "$BOARD" "Setting default console to serial ttyS0 for mainline kernel bootscript" "info"
-		declare -g BOOTSCRIPT="boot-rockchip64-ttyS0.cmd:boot.cmd"
-		declare -g SERIALCON="ttyS0"
-	fi
-}
+#function post_family_config__x88pro_set_serial_console_for_edge() {
+#	if [[ "${BRANCH}" == vendor ]]; then
+#		display_alert "$BOARD" "Using vendor kernel; keeping default console settings" "info"
+#	else
+#		display_alert "$BOARD" "Setting default console to serial ttyS0 for mainline kernel bootscript" "info"
+#		declare -g BOOTSCRIPT="boot-rockchip64-ttyS0.cmd:boot.cmd"
+#		declare -g SERIALCON="ttyS0"
+#	fi
+#}
 

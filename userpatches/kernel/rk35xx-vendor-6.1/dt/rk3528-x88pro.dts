@@ -12,7 +12,7 @@
 
 / {
 	model = "Hungsun X88 TV box";
-	compatible = "hungsun,x88",  "rockchip,rk3528a";
+	compatible = "hungsun,x88",  "rockchip,rk3528";
 	version = "1.1";
 
 	aliases {
@@ -118,12 +118,26 @@
 		vin-supply = <&vcc5v0_sys>;
 	};
 
-	vdd_gpu: vdd_logic: vdd-logic {
+	vdd_logic: vdd-logic {
 		compatible = "pwm-regulator";
 		pwms = <&pwm2 0 5000 1>;
 		regulator-name = "vdd_logic";
 		regulator-min-microvolt = <705000>;
 		regulator-max-microvolt = <1006000>;
+		regulator-init-microvolt = <900000>;
+		regulator-always-on;
+		regulator-boot-on;
+		regulator-settling-time-up-us = <250>;
+		pwm-supply = <&vcc5v0_sys>;
+		status = "okay";
+	};
+
+	vdd_gpu: vdd-gpu {
+		compatible = "pwm-regulator";
+		pwms = <&pwm0 0 5000 1>;
+		regulator-name = "vdd_gpu";
+		regulator-min-microvolt = <705000>;
+		regulator-max-microvolt = <1148000>;
 		regulator-init-microvolt = <900000>;
 		regulator-always-on;
 		regulator-boot-on;
@@ -198,7 +212,8 @@
 		compatible = "mmc-pwrseq-simple";
 		pinctrl-names = "default";
 		pinctrl-0 = <&wifi_enable_h &clkm1_32k_out>;
-		//reset-gpios = <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>;
+		// reset-gpios = <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>;
+		post-power-on-delay-ms = <140>;
 	};
 
 	wireless_bluetooth: wireless-bluetooth {
@@ -207,9 +222,9 @@
 		pinctrl-names = "default", "rts_gpio";
 		pinctrl-0 = <&uart2m1_rtsn>;
 		pinctrl-1 = <&uart2m1_gpios>;
-		BT,reset_gpio    = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>; 		//49
-		BT,wake_gpio     = <&gpio1 RK_PC0 GPIO_ACTIVE_HIGH>;
-		BT,wake_host_irq = <&gpio1 RK_PC2 GPIO_ACTIVE_HIGH>;			//50
+		BT,reset_gpio    = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>; 		//49 0x31
+		BT,wake_gpio     = <&gpio1 RK_PC0 GPIO_ACTIVE_HIGH>;			 //  48 bt_default_wake
+		BT,wake_host_irq = <&gpio1 RK_PC2 GPIO_ACTIVE_HIGH>;			//50 0x32
 		status = "okay";
 	};
 
@@ -262,7 +277,16 @@
 
 	seekwcn_boot {
 		compatible = "seekwave,sv6160";
-		dma_type = <0x01>;
+		dma_type = <0x01>;    /*1:ADMA,2:SDMA*/
+		skw_dram_path = " /usr/lib/firmware/skw/SWT6621_DRAM_SDIO.bin";
+		skw_iram_path = "/usr/lib/firmware/skw/SWT6621_IRAM_SDIO.bin";
+		seekwave_nv_name = "SEEKWAVE_NV_SWT6652_SHARE.bin";
+		bt_antenna = <0>;   /* no BT_antenna setting */
+        // seekwave_nv_name = "SEEKWAVE_NV_SWT6652.bin";
+		gpio_host_wake = <&gpio1 RK_PA6 GPIO_ACTIVE_LOW>;		// 38 rkwifi_wlan_reset
+		gpio_chip_wake = <&gpio1 RK_PC0 GPIO_ACTIVE_HIGH>;		// 48 bt_default_wake
+		gpio_chip_en   =   <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>; 		// 49 bt_default_reset
+        pinctrl-names = "default";
 		status = "okay";
 	};
 
@@ -289,6 +313,18 @@
 		};
 	};
 };
+/*
+&fiq_debugger {
+    rockchip,serial-id = <0x0>; 
+    rockchip,signal-irq = <0xbc>;
+    rockchip,wake-irq = <0x0>;
+    interrupts = <0x0 0x121 0x4>, <0x0 0x8f 0x4>;
+    interrupt-names = "fiq", "wakeup";
+    pinctrl-names = "default";
+    pinctrl-0 = <&uart0m1_xfer>; 
+    status = "okay";
+}
+*/
 
 &gmac0 {
 	tx_delay = <0x30>;
@@ -306,7 +342,7 @@
 
 &pwm3 {
 	// compatible = "rockchip,remotectl-pwm";
-	compatible = "rockchip,remotectl-pwm-v4";
+	compatible =  "rockchip,remotectl-pwm", "rockchip,remotectl-pwm-v4";
 	pinctrl-names = "default";
 	pinctrl-0 = <&pwm3m0_pins>;
 	interrupts = <GIC_SPI 53 IRQ_TYPE_LEVEL_HIGH GIC_SPI 54 IRQ_TYPE_LEVEL_HIGH>;

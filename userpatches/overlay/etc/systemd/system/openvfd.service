@@ -1,0 +1,12 @@
+[Unit]
+Description=openvfd
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment="OPTS=-24h"
+ExecStart=/usr/sbin/OpenVFDService $OPTS &
+ExecStop=/usr/bin/killall OpenVFDService
+
+[Install]
+WantedBy=multi-user.target

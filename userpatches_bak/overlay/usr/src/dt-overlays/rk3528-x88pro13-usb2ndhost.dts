@@ -1,0 +1,51 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "rockchip,rk3528";
+
+    /*
+     * 1) Make the OTG port act as a persistent host port.
+     * 2) Ensure the 5V VBUS rail stays on for the OTG port.
+     */
+
+    fragment@0 {
+        target = <&usbdrd_dwc3>;
+        __overlay__ {
+            dr_mode = "host";
+            /* If your kernel was waiting on extcon/ID, drop it: */
+            /delete-property/ extcon;
+            /* Some kernels honor vbus-supply on DWC3: harmless if ignored */
+            vbus-supply = <&vcc5v0_host>;
+            status = "okay";
+        };
+    };
+
+    fragment@1 {
+        target = <&u2phy_otg>;
+        __overlay__ {
+            status = "okay";
+            phy-supply = <&vcc5v0_host>;
+        };
+    };
+
+    /* These are already okay in your base DTS, but keeping them here
+     * makes the overlay self-sufficient if reused elsewhere. */
+    fragment@2 {
+        target = <&u2phy_host>;
+        __overlay__ {
+            status = "okay";
+            phy-supply = <&vcc5v0_host>;
+        };
+    };
+
+    /* Ensure the 5V rail is enabled at boot (it already is, but belt & braces). */
+    fragment@3 {
+        target = <&vcc5v0_host>;
+        __overlay__ {
+            regulator-boot-on;
+            regulator-always-on;
+            status = "okay";
+        };
+    };
+};

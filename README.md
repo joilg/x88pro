@@ -3,6 +3,14 @@
 ### WORK IN PROGRESS
 
 
+## What’s new: 
+
+04.06.2026
+*,Wifi also for Seekwave EA6521 Wifi Chip
+* Display Driver for HT1628 
+* Target OS update to Ubuntu resolute 26.01 
+
+
 ## Background
 
 	X88PRO13 TV box is manufacted by Shenzhen Hugsun Technology Co., Ltd. 
@@ -27,7 +35,7 @@
     Remote control: IR
 
 ### Status
-tested with Armbian build v26.2.0-trunk.410
+
 HDMI, LAN, WiFi is OK
  
 - some Tests required

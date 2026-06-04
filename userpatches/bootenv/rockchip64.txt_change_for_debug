@@ -1,0 +1,8 @@
+verbosity=7
+bootlogo=false
+console=both
+earlycon=on
+test=1
+debug=7
+initcall_debug loglevel=8
+clk_ignore_unused

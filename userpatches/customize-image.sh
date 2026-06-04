@@ -18,11 +18,13 @@ BOARD=$3
 BUILD_DESKTOP=$4
 
 Main() {
-
+	set -x
 	cp -r /tmp/overlay/* /
+
 	apt update
 	apt --yes  --force-yes --allow-unauthenticated install binwalk
 	sync
+
 } # Main
 
 
