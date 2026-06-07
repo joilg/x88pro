@@ -222,7 +222,7 @@
 		pinctrl-names = "default", "rts_gpio";
 		pinctrl-0 = <&uart2m1_rtsn>;
 		pinctrl-1 = <&uart2m1_gpios>;
-		BT,reset_gpio    = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>; 		//49 0x31
+		BT,reset_gpio    = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>; 		//49 0x31    102
 		BT,wake_gpio     = <&gpio1 RK_PC0 GPIO_ACTIVE_HIGH>;			 //  48 bt_default_wake
 		BT,wake_host_irq = <&gpio1 RK_PC2 GPIO_ACTIVE_HIGH>;			//50 0x32
 		status = "okay";
@@ -234,8 +234,8 @@
 		/* wifi_chip_type = "AIC8801";  [00];	 AIC880, SV6160 */
 		pinctrl-names = "default";
 		pinctrl-0 = <&wifi_host_wake_irq>;
-		WIFI,host_wake_irq = <&gpio1 RK_PA7 GPIO_ACTIVE_HIGH>;    //GPIO_ACTIVE_HIGH 0
-		WIFI,reset_gpio = <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>;  //GPIO_ACTIVE_HIGH 0
+		WIFI,host_wake_irq = <&gpio1 RK_PA7 GPIO_ACTIVE_HIGH>;	//GPIO_ACTIVE_HIGH 0
+		WIFI,reset_gpio = <&gpio1 RK_PA6 GPIO_ACTIVE_LOW>;  		// 38 rkwifi_wlan_reset, active low
 		status = "okay";
 	};
 
