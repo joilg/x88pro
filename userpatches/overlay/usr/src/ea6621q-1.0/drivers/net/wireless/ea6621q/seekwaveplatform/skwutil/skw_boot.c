@@ -202,6 +202,7 @@ static int seekwave_boot_parse_dt(struct platform_device *pdev, struct seekwave_
 	int ret = 0;
 	enum of_gpio_flags flags;
 	struct device_node *np = pdev->dev.of_node;
+	
 	/*add the dma type dts config*/
 	if (of_property_read_u32(np, "dma_type", &(boot_data->dma_type))){
 		boot_data->dma_type = ADMA;
@@ -218,20 +219,28 @@ static int seekwave_boot_parse_dt(struct platform_device *pdev, struct seekwave_
 		boot_data->chip_gpio=-1;
 		boot_data->host_gpio=-1;
 	}
+	
 	if (boot_data->host_gpio >= 0) {
 		ret = devm_gpio_request_one(&pdev->dev, boot_data->host_gpio, GPIOF_IN, "HOST_WAKE" );
-		if(ret < 0){
+		if (ret == -EBUSY) {
+			skwboot_log("HOST_WAKE GPIO already requested, sharing resource.\n");
+			ret = 0; /* -EBUSY ignorieren, da Pin bereits aktiv */
+		} else if (ret < 0) {
 			gpio_free(boot_data->host_gpio);
-			devm_gpio_request_one(&pdev->dev, boot_data->host_gpio, GPIOF_IN, "HOST_WAKE" );
+			ret = devm_gpio_request_one(&pdev->dev, boot_data->host_gpio, GPIOF_IN, "HOST_WAKE" );
 		}
-		if (boot_data->chip_gpio >= 0) {
+		
+		if (boot_data->chip_gpio >= 0 && ret >= 0) {
 			ret = devm_gpio_request_one(&pdev->dev, boot_data->chip_gpio, GPIOF_OUT_INIT_HIGH,"CHIP_WAKE");
-			if (ret < 0)
+			if (ret == -EBUSY) {
+				skwboot_log("CHIP_WAKE GPIO already requested, sharing resource.\n");
+				ret = 0; /* -EBUSY ignorieren */
+			} else if (ret < 0) {
 				skwboot_err("%s:gpio_chip request fail ret=%d\n",__func__, ret);
-			else
+			} else {
 				gpio_set_value(boot_data->host_gpio, 1);
+			}
 		}
-
 	}
 
 	if(boot_data->chip_gpio >= 0 && boot_data->host_gpio >=0) {
@@ -239,11 +248,23 @@ static int seekwave_boot_parse_dt(struct platform_device *pdev, struct seekwave_
 	} else {
 		boot_data->slp_disable = 1;
 	}
-	if (boot_data->chip_en >= 0)
-		ret = devm_gpio_request_one(&pdev->dev, boot_data->chip_en, GPIOF_OUT_INIT_HIGH,"CHIP_EN");
+	
+	if (boot_data->chip_en >= 0) {
+		int en_ret = devm_gpio_request_one(&pdev->dev, boot_data->chip_en, GPIOF_OUT_INIT_HIGH,"CHIP_EN");
+		if (en_ret == -EBUSY) {
+			skwboot_log("CHIP_EN GPIO already requested, sharing resource.\n");
+		} else if (en_ret < 0) {
+			ret = en_ret; /* Nur echte kritische Fehler weiterreichen */
+		}
+	}
+
+	/* Rückgabewert absichern: Wenn Ressourcen geteilt wurden, melden wir Erfolg (0) */
+	if (ret == -EBUSY) 
+		ret = 0;
 
 	skwboot_log("%s, chipen:%d gpio_out:%d gpio_in:%d state = %d ret=%d\n", __func__,boot_data->chip_en,
-			boot_data->chip_gpio,boot_data->host_gpio, gpio_get_value(boot_data->host_gpio), ret);
+			boot_data->chip_gpio,boot_data->host_gpio, 
+			(boot_data->host_gpio >= 0) ? gpio_get_value(boot_data->host_gpio) : -1, ret);
 	return ret;
 }
 
