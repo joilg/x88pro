@@ -1,0 +1,60 @@
+#!/bin/bash
+
+echo "Provisioning started"
+echo
+echo -e "\033[1minstall openvfd Display driver"
+
+dkms add -m openvfd -v 8fadd10
+dkms build -m openvfd -v 8fadd10
+dkms install -m openvfd -v 8fadd10
+echo openvfd  > /etc/modules-load.d/openvfd.conf
+modprobe openvfd
+
+make -C /var/lib/dkms/openvfd/8fadd10/source OpenVFDService install
+
+systemctl enable openvfd.service
+systemctl start openvfd.service
+echo 7 >   /sys/class/leds/openvfd/brightness
+systemctl enable vfd-network.service
+systemctl start vfd-network.service 
+
+
+#  wifi chip id :
+#				aic8800     ac2a
+#				ea6521      8800
+
+if  [ -d "/sys/kernel/debug/mmc2/mmc2:8800" ]; then  
+echo
+echo "AIC8800 Driver detect. blacklisting"
+mv /etc/modules-load.d/aic8800-btlpm.conf /etc/modules-load.d/aic8800-btlpm.bak
+echo "aic8800_fdrv" > /etc/modprobe.d/blacklist-aic8800.conf
+echo "aic8800_btlpm" >> /etc/modprobe.d/blacklist-aic8800.conf
+echo "aic8800_bsp" >> /etc/modprobe.d/blacklist-aic8800.conf
+echo 
+
+echo -e "\033[1mInstall Seekwave EA6521 driver"
+
+#mkdir /usr/lib/firmware/skw
+#cp dkms-ea6x21q/ea6x21p/firmware/*  /usr/lib/firmware/skw/
+
+# dkms remove -m ea6621q -v 1.0  | true
+dkms add -m ea6621q -v 1.0
+dkms build -m ea6621q -v 1.0
+dkms install -m ea6621q -v 1.0
+
+cat <<EOF > /etc/modules-load.d/skw.conf
+hidp
+rfcomm
+bnep
+skw_sdio
+skw_bootcoms
+skw
+skwbt
+EOF
+
+echo -e "\033[1mSeekwave EA6521 driver installed. Use armbian-config to connect via Wi-Fi" 
+echo -e "\033[1;31mPlease reboot to apply the Wi-Fi changes."
+echo -e "\033[0m"
+fi
+
+echo "Provisioning complete"

@@ -8,11 +8,10 @@ add this to your device Tree File
  cat /var/lib/dkms/ea6621q/1.0/build/make.log
 
 # load driver 
+rmmod skwbt; rmmod skw; rmmod skw_bootcoms; rmmod skw_sdio
 
-modprobe skw_sdio
-modprobe 
-modprobe 
-modprobe 
+skw_bootcoms
+modprobe skw_sdio; modprobe skw_bootcoms; modprobe skw; modprobe skwbt
 
 
 #load module  on Startup
@@ -24,10 +23,6 @@ reboot
 
 # uninstall:
  dkms remove -m ea6621q -v 1.0
- rmmod
- rmmod
- rmmod
- rmmod skw
  
  
  # test

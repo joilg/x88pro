@@ -36,10 +36,10 @@ SKW_EXTRA_INC :=./include/linux/platform_data
 SKW_EXTRA_SYMBOLS := ./drivers/seekwaveplatform/Module.symvers
 
 
-#export CONFIG_SKW_LOG_ERROR
-#export CONFIG_SKW_LOG_WARN
-export CONFIG_SKW_LOG_INFO
-#export CONFIG_SKW_LOG_DEBUG:=1
-#export CONFIG_SKW_LOG_DETAIL
+#export CONFIG_SKW_LOG_ERROR:=1
+export CONFIG_SKW_LOG_WARN:=1
+#export CONFIG_SKW_LOG_INFO:=1
+# export CONFIG_SKW_LOG_DEBUG:=1
+# export CONFIG_SKW_LOG_DETAIL:=1
 
 obj-$(CONFIG_SEEKWAVE_BSP_DRIVERS) += drivers/net/wireless/ea6621q/

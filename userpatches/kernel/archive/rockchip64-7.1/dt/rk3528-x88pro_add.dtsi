@@ -1,0 +1,352 @@
+#include <dt-bindings/clock/rk3528-cru.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/phy/phy.h>
+#include <dt-bindings/pinctrl/rockchip.h>
+#include <dt-bindings/power/rk3528-power.h>
+#include <dt-bindings/soc/rockchip,boot-mode.h>
+#include <dt-bindings/thermal/thermal.h>
+
+
+
+
+
+	hdmi_sound: hdmi-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <128>;
+		simple-audio-card,name = "rockchip-hdmi0";
+		simple-audio-card,cpu {
+			sound-dai = <&sai3>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&hdmi>;
+		};
+	};
+
+	acodec_sound: acodec-sound {
+		status = "okay";
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "rk3528-acodec";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,mclk-fs = <256>;
+		simple-audio-card,cpu {
+			sound-dai = <&sai2>;
+		};
+		simple-audio-card,codec {
+			sound-dai = <&acodec>;
+		};
+	};
+
+	crypto: crypto@ffc40000 {
+		compatible = "rockchip,crypto-v4";
+		reg = <0x0 0xffc40000 0x0 0x2000>;
+		interrupts = <GIC_SPI 19 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&scmi_clk SCMI_ACLK_CRYPTO>, <&scmi_clk SCMI_HCLK_CRYPTO>,
+			 <&scmi_clk SCMI_CORE_CRYPTO>, <&scmi_clk SCMI_PKA_CRYPTO>;
+		clock-names = "aclk", "hclk", "sclk", "pka";
+		assigned-clocks = <&scmi_clk SCMI_CORE_CRYPTO>, <&scmi_clk SCMI_PKA_CRYPTO>;
+		assigned-clock-rates = <300000000>, <300000000>;
+		resets = <&cru SRST_RESETN_CORE_CRYPTO>;
+		reset-names = "crypto-rst";
+		status = "disabled";
+	};
+
+
+
+&gpu_bus {
+	bus-supply = <&vdd_logic>;
+	status = "disabled";
+};
+
+&otp {
+	/* Data cells */
+	cpu_mbist_vmin: cpu-mbist-vmin@9 {
+		reg = <0x09 0x1>;
+		bits = <0 3>;
+	};
+	gpu_mbist_vmin: gpu-mbist-vmin@9 {
+		reg = <0x09 0x1>;
+		bits = <3 2>;
+	};
+	logic_mbist_vmin: logic-mbist-vmin@9 {
+		reg = <0x09 0x1>;
+		bits = <5 2>;
+	};
+	test_version: test-version@29 {
+		reg = <0x29 0x1>;
+	};
+	macphy_bgs: macphy-bgs@2d {
+		reg = <0x2d 0x1>;
+	};
+	macphy_txlevel: macphy-txlevel@2e {
+		reg = <0x2e 0x2>;
+	};
+	vdac_out_current: vdac-out-current@30 {
+		reg = <0x30 0x1>;
+	};
+	cpu_opp_info: cpu-opp-info@32 {
+		reg = <0x32 0x6>;
+	};
+	gpu_opp_info: gpu-opp-info@38 {
+		reg = <0x38 0x6>;
+	};
+	dmc_opp_info: dmc-opp-info@3e {
+		reg = <0x3e 0x6>;
+	};
+};
+
+/*
+&crypto {
+	status = "okay";
+};
+*/
+
+&dfi {
+	status = "okay";
+};
+
+/*
+&dmc {
+	center-supply = <&vdd_logic>;
+	status = "disabled";
+};
+*/
+&display_subsystem {
+	status = "okay";
+};
+
+&hdmi {
+	status = "okay";
+};
+
+&hdmi_in_vp0 {
+	status = "okay";
+};
+
+&hdmiphy {
+	status = "okay";
+};
+
+
+&tve {
+	status = "okay";
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			reg = <0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			tve_in_vp1: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&vp1_out_tve>;
+				status = "disabled";
+			};
+		};
+	};
+};
+
+
+&iep {
+	status = "okay";
+};
+
+&iep_mmu {
+	status = "okay";
+};
+
+&jpegd {
+	status = "okay";
+};
+
+&jpegd_mmu {
+	status = "okay";
+};
+
+&mpp_srv {
+	status = "okay";
+};
+
+&rga2 {
+	status = "okay";
+};
+
+&rga2_mmu {
+	status = "okay";
+};
+
+&rkvdec {
+	status = "disabled";
+};
+
+&rkvdec_mmu {
+	status = "okay";
+};
+
+&rkvenc {
+	status = "disabled";
+};
+
+&rkvenc_mmu {
+	status = "okay";
+};
+
+&rkvtunnel {
+	status = "disabled";
+};
+
+&rockchip_suspend {
+	status = "okay";
+	rockchip,sleep-debug-en = <1>;
+	rockchip,virtual-poweroff = <1>;
+};
+
+&vdpp {
+	status = "okay";
+};
+
+&vdpu {
+	status = "okay";
+};
+
+&vdpu_mmu {
+	status = "okay";
+};
+
+&vop {
+	status = "okay";
+	vop_out: ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		port@0 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <0>;
+
+			vp0_out_hdmi: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&hdmi_in_vp0>;
+			};
+		};
+
+		port@1 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <1>;
+
+			vp1_out_tve: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&tve_in_vp1>;
+			};
+		};
+	};	
+};
+
+&vop_mmu {
+	status = "okay";
+};
+
+&tsadc {
+	status = "okay";
+};
+
+&acodec {
+	pa-ctl-gpios = <&gpio0 RK_PA0 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
+
+&avsd {
+	status = "okay";
+};
+
+&sai2 {
+	status = "okay";
+};
+
+&sai3 {
+	status = "okay";
+};
+
+&uart2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart2m1_xfer &uart2m1_ctsn>, <&uart2m1_rtsn>;
+	uart-has-rtscts;
+	status = "okay";
+
+	wireless_bluetooth: wireless-bluetooth {
+		compatible = "bluetooth-platdata";
+		uart_rts_gpios = <&gpio1 RK_PB2 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default", "rts_gpio";
+		pinctrl-0 = <&uart2m1_rtsn>;
+		pinctrl-1 = <&uart2m1_gpios>;
+		BT,reset_gpio    = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>; 		//49
+		BT,wake_gpio     = <&gpio1 RK_PC0 GPIO_ACTIVE_HIGH>;
+		BT,wake_host_irq = <&gpio1 RK_PC2 GPIO_ACTIVE_HIGH>;			//50
+		status = "disabled";
+		/* status = "okay";   V1.4  */
+	};
+};
+
+&pcie {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pciem1_pins>;
+	reset-gpios = <&gpio1 RK_PA2 GPIO_ACTIVE_HIGH>;
+	vpcie3v3-supply = <&vcc3v3_pcie20>;
+	status = "disabled";
+};
+
+&u2phy_host {
+	phy-supply = <&vcc5v0_host>;
+	status = "okay";
+};
+
+&u2phy_otg {
+	phy-supply = <&vcc5v0_otg>;
+	status = "okay";
+};
+
+&u2phy {
+	status = "okay";
+};
+
+&usb_host0_ehci {
+	status = "okay";
+};
+
+&usb_host0_ohci {
+	status = "okay";
+};
+
+/*
+&usbdrd30 {
+	status = "okay";
+};
+
+&usbdrd_dwc3  {
+	dr_mode = "host";
+	extcon = <&u2phy>;
+	phys = <&u2phy_otg>;
+	phy-names = "usb2-phy";
+	interrupts = <GIC_SPI 152 IRQ_TYPE_LEVEL_HIGH>;
+	resets = <&cru SRST_A_USB3OTG>;
+	reset-names = "usb3-otg";
+	maximum-speed = "high-speed";
+	snps,dis_u2_susphy_quirk;
+	snps,usb2-lpm-disable;
+	status = "okay";
+};
+*/
+
+&usb_host0_xhci {
+	dr_mode = "host";
+	extcon = <&u2phy>;
+	maximum-speed = "high-speed";
+	phys = <&u2phy_otg>;
+	phy-names = "usb2-phy";
+	status = "okay";
+};

@@ -234,8 +234,8 @@
 		/* wifi_chip_type = "AIC8801";  [00];	 AIC880, SV6160 */
 		pinctrl-names = "default";
 		pinctrl-0 = <&wifi_host_wake_irq>;
-		WIFI,host_wake_irq = <&gpio1 RK_PA7 GPIO_ACTIVE_HIGH>;	//GPIO_ACTIVE_HIGH 0
-		WIFI,reset_gpio = <&gpio1 RK_PA6 GPIO_ACTIVE_LOW>;  		// 38 rkwifi_wlan_reset, active low
+		WIFI,host_wake_irq = <&gpio1 RK_PA7 GPIO_ACTIVE_HIGH>;	// 39 wifi-host-wake-irq
+		WIFI,reset_gpio = <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>;  		// 38 rkwifi_wlan_reset
 		status = "okay";
 	};
 

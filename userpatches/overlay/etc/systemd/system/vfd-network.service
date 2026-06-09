@@ -1,0 +1,13 @@
+[Unit]
+Description=OpenVFD Network Icon Auto-Switcher
+After=network.target 
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/vfd-network.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target 
+
