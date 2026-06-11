@@ -212,7 +212,7 @@
 		compatible = "mmc-pwrseq-simple";
 		pinctrl-names = "default";
 		pinctrl-0 = <&wifi_enable_h &clkm1_32k_out>;
-		// reset-gpios = <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio1 RK_PA6 GPIO_ACTIVE_LOW>;
 		post-power-on-delay-ms = <140>;
 	};
 
@@ -283,9 +283,12 @@
 		seekwave_nv_name = "SEEKWAVE_NV_SWT6652_SHARE.bin";
 		bt_antenna = <0>;   /* no BT_antenna setting */
         // seekwave_nv_name = "SEEKWAVE_NV_SWT6652.bin";
-		gpio_host_wake = <&gpio1 RK_PA6 GPIO_ACTIVE_LOW>;		// 38 rkwifi_wlan_reset
-		gpio_chip_wake = <&gpio1 RK_PC0 GPIO_ACTIVE_HIGH>;		// 48 bt_default_wake
-		gpio_chip_en   =   <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>; 		// 49 bt_default_reset
+		//gpio_host_wake = <&gpio1 RK_PA6 GPIO_ACTIVE_LOW>;		// 38 rkwifi_wlan_reset
+		//gpio_chip_wake = <&gpio1 RK_PC0 GPIO_ACTIVE_HIGH>;		// 48 bt_default_wake
+		//gpio_chip_en   =   <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>; 		// 49 bt_default_reset
+		gpio_host_wake = <&gpio1 RK_PC2 GPIO_ACTIVE_HIGH>;		// <0x24 0x12 0x00>
+		gpio_chip_wake = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>;		// <0x24 0x11 0x00>
+		gpio_chip_en   =   <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>; 		// <0x24 0x06 0x00>
         pinctrl-names = "default";
 		status = "okay";
 	};
