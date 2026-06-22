@@ -4,6 +4,12 @@
 
 
 ## What’s new: 
+22.6.2026
+* add first support  for current and edge kernel
+      no HDMI yet
+      LAN, USB ok
+      current: only aic8800 wifi 
+      edge:     no wifi at all
 
 04.06.2026
 *,Wifi also for Seekwave EA6521 Wifi Chip
