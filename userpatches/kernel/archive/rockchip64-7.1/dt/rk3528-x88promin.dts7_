@@ -361,8 +361,6 @@
 };
 
 &usb_host0_xhci {
-	extcon = <&u2phy>;
-	maximum-speed = "high-speed";
 	dr_mode = "host";
 	status = "okay";
 };
@@ -370,15 +368,15 @@
 &usb_host0_ohci {
 	status = "okay";
 };
-/*
+
 &pcie {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pcie_reset>;
 	reset-gpios = <&gpio1 RK_PA2 GPIO_ACTIVE_HIGH>;
 	vpcie3v3-supply = <&vcc_3v3>;
-	status = "disabled";
+	status = "okay";
 };
-*/
+
 &pinctrl {
 	leds {
 		led_0: led-0 {
@@ -418,7 +416,30 @@
 		uart2m1_gpios: uart2m1-gpios {
 			rockchip,pins = <1 RK_PB2 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
+
+	pcie {
+		 pcie_reset: pcie-reset {
+				 rockchip,pins = <1 RK_PA2 RK_FUNC_GPIO &pcfg_pull_none>;
+		 };
 	};
+
+
+
+	};
+/*
+	seekwcn-boot {
+		gpio_host_wake = <&gpio1 RK_PC2 GPIO_ACTIVE_HIGH>;		// <0x24 0x12 0x00>
+		gpio_chip_wake = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>;		// <0x24 0x11 0x00>
+		gpio_chip_en   =   <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>; 		// <0x24 0x06 0x00>
+	};
+
+
+	openvfd {
+		openvfd_gpio_clk = <&gpio4 RK_PA4 GPIO_ACTIVE_HIGH>;
+		openvfd_gpio_stb = <&gpio4 RK_PA5 GPIO_ACTIVE_HIGH>;
+		openvfd_gpio_dat = <&gpio4 RK_PA6 GPIO_ACTIVE_HIGH>;
+	};
+*/
 
 };
 

@@ -1,0 +1,8 @@
+verbosity=7
+bootlogo=false
+console=ttyS0,1500000
+earlycon=on
+test=1
+debug=7
+initcall_debug loglevel=8
+clk_ignore_unused

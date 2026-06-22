@@ -181,22 +181,18 @@
 		regulator-name = "vcc5v0_otg";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
-		regulator-boot-on; 
-		regulator-always-on;
 		vin-supply = <&vcc5v0_sys>;
 	};
 
 	sdio_pwrseq: sdio-pwrseq {
 		compatible = "mmc-pwrseq-simple";
-		clocks = <&clkm1_32k_out>;
-		clock-names = "ext_clock";
+		//clocks = <&clkm1_32k_out 1>;
+		//clock-names = "ext_clock";
 		pinctrl-names = "default";
-		pinctrl-0 = <&wifi_enable_h>;
-		reset-gpios = <&gpio1 RK_PA6 GPIO_ACTIVE_LOW>;
-		post-power-on-delay-ms = <300>;
-		power-off-delay-us = <500>;
-		mmc-pwrseq = <&sdio_pwrseq>;
-		status = "okay";
+		pinctrl-0 = <&wifi_enable_h &clkm1_32k_out>;
+		reset-gpios = <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>;
+		post-power-on-delay-ms = <200>;
+		power-off-delay-us = <300>;
 	};
 
 	openvfd {
@@ -270,7 +266,6 @@
 	cap-sd-highspeed;
 	cap-sdio-irq;
 	keep-power-in-suspend;
-	pm-ignore-notify; 
 	non-removable;
 	mmc-pwrseq = <&sdio_pwrseq>;
 	no-1-8-v;
@@ -300,7 +295,7 @@
 		interrupt-names = "host-wake";
 
 		dma_type = <0x01>;    /*1:ADMA,2:SDMA*/
-		skw_dram_path = "/usr/lib/firmware/skw/SWT6621_DRAM_SDIO.bin";
+		skw_dram_path = " /usr/lib/firmware/skw/SWT6621_DRAM_SDIO.bin";
 		skw_iram_path = "/usr/lib/firmware/skw/SWT6621_IRAM_SDIO.bin";
 		seekwave_nv_name = "SEEKWAVE_NV_SWT6652_SHARE.bin";
 		bt_antenna = <0>;   /* no BT_antenna setting */
@@ -310,7 +305,7 @@
 		//gpio_chip_en   =   <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>; 		// 49 bt_default_reset
 		gpio_host_wake = <&gpio1 RK_PC2 GPIO_ACTIVE_HIGH>;		// 50 <0x24 0x12 0x00>
 		gpio_chip_wake = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>;		// 49 <0x24 0x11 0x00>
-		// gpio_chip_en   =   <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>; 		// 38 <0x24 0x06 0x00>
+		gpio_chip_en   =   <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>; 		// 38 <0x24 0x06 0x00>
         pinctrl-names = "default";
 		status = "okay";
 	};
@@ -347,7 +342,7 @@
 	};
 
 	u2phy_otg: otg-port {
-		phy-supply = <&vcc5v0_otg>;
+		vbus-supply = <&vcc5v0_otg>;
 		status = "okay";
 	};
 };
@@ -361,8 +356,6 @@
 };
 
 &usb_host0_xhci {
-	extcon = <&u2phy>;
-	maximum-speed = "high-speed";
 	dr_mode = "host";
 	status = "okay";
 };
@@ -370,15 +363,7 @@
 &usb_host0_ohci {
 	status = "okay";
 };
-/*
-&pcie {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pcie_reset>;
-	reset-gpios = <&gpio1 RK_PA2 GPIO_ACTIVE_HIGH>;
-	vpcie3v3-supply = <&vcc_3v3>;
-	status = "disabled";
-};
-*/
+
 &pinctrl {
 	leds {
 		led_0: led-0 {
@@ -419,6 +404,20 @@
 			rockchip,pins = <1 RK_PB2 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
+/*
+	seekwcn-boot {
+		gpio_host_wake = <&gpio1 RK_PC2 GPIO_ACTIVE_HIGH>;		// <0x24 0x12 0x00>
+		gpio_chip_wake = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>;		// <0x24 0x11 0x00>
+		gpio_chip_en   =   <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>; 		// <0x24 0x06 0x00>
+	};
+
+
+	openvfd {
+		openvfd_gpio_clk = <&gpio4 RK_PA4 GPIO_ACTIVE_HIGH>;
+		openvfd_gpio_stb = <&gpio4 RK_PA5 GPIO_ACTIVE_HIGH>;
+		openvfd_gpio_dat = <&gpio4 RK_PA6 GPIO_ACTIVE_HIGH>;
+	};
+*/
 
 };
 
