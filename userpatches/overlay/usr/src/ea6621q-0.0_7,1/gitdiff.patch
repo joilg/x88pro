@@ -1,0 +1,386 @@
+diff --git a/README.txt b/README.txt
+index 7e43789..8f4dbc6 100644
+--- a/README.txt
++++ b/README.txt
+@@ -4,7 +4,7 @@ add this to your device Tree File
+  
+  # INSTALL Kernel Modul:
+ 
+- dkms remove -m ea6621q -v 1.0 && dkms add -m ea6621q -v 1.0 && dkms build -m ea6621q -v 1.0 &&  dkms install -m ea6621q -v 1.0 
++ dkms remove -m ea6621q -v 1.0 ; dkms add -m ea6621q -v 1.0 && dkms build -m ea6621q -v 1.0 &&  dkms install -m ea6621q -v 1.0 
+  cat /var/lib/dkms/ea6621q/1.0/build/make.log
+ 
+ # load driver 
+diff --git a/drivers/net/wireless/ea6621q/seekwaveplatform/sdio/skw_sdio_main.c b/drivers/net/wireless/ea6621q/seekwaveplatform/sdio/skw_sdio_main.c
+index 3c5e611..f3e5af7 100644
+--- a/drivers/net/wireless/ea6621q/seekwaveplatform/sdio/skw_sdio_main.c
++++ b/drivers/net/wireless/ea6621q/seekwaveplatform/sdio/skw_sdio_main.c
+@@ -21,7 +21,7 @@
+ #include <linux/ktime.h>
+ #include <linux/module.h>
+ #include <linux/of_device.h>
+-#include <linux/of_gpio.h>
++//#include <linux/of_gpio.h>
+ #include <linux/pm_runtime.h>
+ #include <linux/mmc/card.h>
+ #include <linux/mmc/core.h>
+diff --git a/drivers/net/wireless/ea6621q/seekwaveplatform/skwutil/skw_boot.c b/drivers/net/wireless/ea6621q/seekwaveplatform/skwutil/skw_boot.c
+index e5e8936..ed09d83 100644
+--- a/drivers/net/wireless/ea6621q/seekwaveplatform/skwutil/skw_boot.c
++++ b/drivers/net/wireless/ea6621q/seekwaveplatform/skwutil/skw_boot.c
+@@ -21,7 +21,6 @@
+ #include <linux/gpio.h>
+ #include <linux/delay.h>
+ #include <linux/slab.h>
+-#include <linux/of_gpio.h>
+ #include <linux/completion.h>
+ #include <linux/moduleparam.h>
+ #include <linux/workqueue.h>
+@@ -200,9 +199,11 @@ ret:
+ static int seekwave_boot_parse_dt(struct platform_device *pdev, struct seekwave_device *boot_data)
+ {
+ 	int ret = 0;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 0)
++	unsigned int flags = 0;
++#else
+ 	enum of_gpio_flags flags;
+-	struct device_node *np = pdev->dev.of_node;
+-	
++#endif	struct device_node *np = pdev->dev.of_node;
+ 	/*add the dma type dts config*/
+ 	if (of_property_read_u32(np, "dma_type", &(boot_data->dma_type))){
+ 		boot_data->dma_type = ADMA;
+@@ -363,7 +364,11 @@ static int seekwave_boot_probe(struct  platform_device *pdev)
+  *Date:
+  *Modify:
+  **************************************************************************/
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
+ static int seekwave_boot_remove(struct  platform_device *pdev)
++#else
++static int seekwave_boot_remove(struct platform_device *pdev)
++#endif
+ {
+ 	skwboot_log("%s the Enter \n", __func__);
+ 
+diff --git a/drivers/net/wireless/ea6621q/seekwaveplatform/skwutil/skw_boot.h b/drivers/net/wireless/ea6621q/seekwaveplatform/skwutil/skw_boot.h
+index f3001f6..99cad62 100644
+--- a/drivers/net/wireless/ea6621q/seekwaveplatform/skwutil/skw_boot.h
++++ b/drivers/net/wireless/ea6621q/seekwaveplatform/skwutil/skw_boot.h
+@@ -63,12 +63,13 @@
+ #endif
+ 
+ #ifdef CONFIG_NO_GKI
++#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0))
+   MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
++#else
++  MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
+ #endif
+-
+-#if KERNEL_VERSION(5, 0, 0) <= LINUX_VERSION_CODE
+-  MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
+ #endif
++
+ /****************************************************************
+  *Description:the skwsdio log define and the skwsdio data debug,
+  *Func: skwsdio_log, skwsdio_err, skwsdio_data_pr;
+diff --git a/drivers/net/wireless/ea6621q/skwifi/skw_cfg80211.c b/drivers/net/wireless/ea6621q/skwifi/skw_cfg80211.c
+index d1f49d3..2974dba 100644
+--- a/drivers/net/wireless/ea6621q/skwifi/skw_cfg80211.c
++++ b/drivers/net/wireless/ea6621q/skwifi/skw_cfg80211.c
+@@ -20,6 +20,8 @@
+ #include <linux/inetdevice.h>
+ #include <net/addrconf.h>
+ #include <linux/if_tunnel.h>
++#include <linux/sched/clock.h>
++#include <net/mac80211.h>
+ 
+ #include "skw_core.h"
+ #include "skw_iface.h"
+@@ -624,7 +626,12 @@ out:
+ 	return ret;
+ }
+ 
+-static int skw_get_key(struct wiphy *wiphy, struct net_device *netdev,
++static int skw_get_key(struct wiphy *wiphy,
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
++ struct net_device *netdev,
++#else 
++ struct wireless_dev *wdev, 
++#endif
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+ 		int link_id,
+ #endif
+@@ -994,7 +1001,13 @@ static int __skw_set_default_key(struct wiphy *wiphy, struct net_device *dev,
+ }
+ 
+ /* for 11w */
+-static int skw_set_default_mgmt_key(struct wiphy *wiphy, struct net_device *netdev,
++static int skw_set_default_mgmt_key(struct wiphy *wiphy, 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
++ struct net_device *netdev,
++#else 
++ struct wireless_dev *wdev, 
++#endif
++
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+ 			int link_id,
+ #endif
+@@ -1309,7 +1322,9 @@ static int skw_start_ap(struct wiphy *wiphy, struct net_device *dev,
+ 	iface->sap.ht_required = settings->ht_required;
+ 	iface->sap.vht_required = settings->vht_required;
+ 
+-	iface->sap.cfg.crypto.wep_keys = NULL;
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
++    iface->sap.cfg.crypto.wep_keys = NULL;
++#endif
+ 	iface->sap.cfg.crypto.psk = NULL;
+ #else
+ 	iface->sap.cfg.ht_cap = NULL;
+@@ -1637,7 +1652,13 @@ int skw_delete_station(struct wiphy *wiphy, struct net_device *dev,
+ 	return skw_sap_del_sta(wiphy, dev, ctx, subtype, reason);
+ }
+ 
+-int skw_add_station(struct wiphy *wiphy, struct net_device *dev,
++int skw_add_station(struct wiphy *wiphy, 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
++ struct net_device *dev,
++#else 
++ struct wireless_dev *wdev, 
++#endif
++
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+ 		    const u8 *mac,
+ #else
+@@ -1696,14 +1717,26 @@ int skw_add_station(struct wiphy *wiphy, struct net_device *dev,
+ }
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+-static int skw_del_station(struct wiphy *wiphy, struct net_device *dev,
++static int skw_del_station(struct wiphy *wiphy, 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
++ struct net_device *dev,
++#else 
++ struct wireless_dev *wdev, 
++#endif
++
+ 			   struct station_del_parameters *params)
+ {
+ 	return skw_delete_station(wiphy, dev, params->mac,
+ 			params->subtype, params->reason_code);
+ }
+ #else
+-static int skw_del_station(struct wiphy *wiphy, struct net_device *dev,
++static int skw_del_station(struct wiphy *wiphy, 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
++ struct net_device *netdev,
++#else 
++ struct wireless_dev *wdev, 
++#endif
++
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+ 			   const
+ #endif
+@@ -1782,7 +1815,13 @@ static void skw_set_rate_info(struct skw_rate *rate, struct rate_info *rinfo)
+ 	}
+ }
+ 
+-static int skw_get_station(struct wiphy *wiphy, struct net_device *dev,
++static int skw_get_station(struct wiphy *wiphy, 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
++ struct net_device *dev,
++#else 
++ struct wireless_dev *wdev, 
++#endif
++
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+ 			   const u8 *mac,
+ #else
+@@ -2448,7 +2487,13 @@ int skw_cmd_monitor(struct wiphy *wiphy, struct cfg80211_chan_def *chandef, u8 m
+ 	return ret;
+ }
+ 
+-static int skw_cmd_auth(struct wiphy *wiphy, struct net_device *dev,
++static int skw_cmd_auth(struct wiphy *wiphy, 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
++ struct net_device *dev,
++#else 
++ struct wireless_dev *wdev, 
++#endif
++
+ 			struct cfg80211_auth_request *req)
+ {
+ 	int ret = 0;
+@@ -2580,7 +2625,13 @@ static inline void skw_oper_and_vht_capa(struct ieee80211_vht_cap *vht_capa,
+ 		p1[i] &= p2[i];
+ }
+ 
+-static int skw_cmd_assoc(struct wiphy *wiphy, struct net_device *dev,
++static int skw_cmd_assoc(struct wiphy *wiphy, 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
++ struct net_device *dev,
++#else 
++ struct wireless_dev *wdev, 
++#endif
++
+ 			 struct cfg80211_assoc_request *req)
+ {
+ 	int ret = 0;
+@@ -2759,7 +2810,11 @@ int skw_sta_leave(struct wiphy *wiphy, struct net_device *dev,
+ 
+ 	memset(&iface->wmm, 0x0, sizeof(iface->wmm));
+ 
+-	del_timer_sync(&iface->sta.core.timer);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 11, 0)
++        timer_shutdown_sync(&iface->sta.core.timer);
++#else
++        del_timer_sync(&iface->sta.core.timer);
++#endif
+ 
+ 	skw_set_state(&iface->sta.core.sm, SKW_STATE_NONE);
+ 	iface->sta.core.sm.flags = 0;
+@@ -3532,24 +3587,28 @@ int skw_mgmt_tx(struct wiphy *wiphy, struct skw_iface *iface,
+ 	return ret;
+ }
+ 
+-static inline bool skw_is_rrm_report(const void *buf, int buf_len)
++static bool skw_is_rrm_report(const struct ieee80211_mgmt *mgmt, size_t buf_len)
+ {
+-	const struct ieee80211_mgmt *mgmt = buf;
+-
+-	if (!ieee80211_is_action(mgmt->frame_control))
+-		return false;
+-
+-	if (buf_len < IEEE80211_MIN_ACTION_SIZE +
+-		      sizeof(mgmt->u.action.u.measurement))
+-		return false;
+-
+-	if (mgmt->u.action.category != SKW_WLAN_CATEGORY_RADIO_MEASUREMENT)
+-		return false;
+-
+-	if (mgmt->u.action.u.measurement.action_code != WLAN_ACTION_SPCT_MSR_RPRT)
+-		return false;
+-
+-	return true;
++    /* Definition des fehlenden Makros für moderne Kernel, falls nicht geladen */
++    #ifndef IEEE80211_MIN_ACTION_SIZE
++    #define IEEE80211_MIN_ACTION_SIZE 2
++    #endif
++
++    #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
++    if (buf_len < IEEE80211_MIN_ACTION_SIZE + sizeof(mgmt->u.action.action_data))
++        return false;
++
++    if (mgmt->u.action.action_data[0] != WLAN_ACTION_SPCT_MSR_RPRT)
++        return false;
++    #else
++    if (buf_len < IEEE80211_MIN_ACTION_SIZE + sizeof(mgmt->u.action.u.measurement))
++        return false;
++
++    if (mgmt->u.action.u.measurement.action_code != WLAN_ACTION_SPCT_MSR_RPRT)
++        return false;
++    #endif
++
++    return true;
+ }
+ 
+ static int __skw_cfg80211_mgmt_tx(struct wiphy *wiphy, struct skw_iface *iface,
+@@ -3575,8 +3634,11 @@ static int __skw_cfg80211_mgmt_tx(struct wiphy *wiphy, struct skw_iface *iface,
+ 
+ 	if (limit_len > SKW_CMD_MAX_LEN) {
+ 		if (skw_is_rrm_report(frame, frame_len)) {
+-			int head_offset = offsetof(struct ieee80211_mgmt,
+-					u.action.u.measurement.element_id);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
++        int head_offset = offsetof(struct ieee80211_mgmt, u.action.measurement); 
++#else
++        int head_offset = offsetof(struct ieee80211_mgmt, u.action.u.measurement);
++#endif
+ 
+ 			int ret = -E2BIG;
+ 			int elem_len = 0, next_len = 0;
+diff --git a/drivers/net/wireless/ea6621q/skwifi/skw_compat.h b/drivers/net/wireless/ea6621q/skwifi/skw_compat.h
+index 374b8ef..2d36299 100644
+--- a/drivers/net/wireless/ea6621q/skwifi/skw_compat.h
++++ b/drivers/net/wireless/ea6621q/skwifi/skw_compat.h
+@@ -284,6 +284,13 @@ skw_compat_classify8021d(struct sk_buff *skb, void *qos_map)
+ #endif
+ }
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0) // Oder die genaue Version, ab der Ihr Treiber bricht
++static inline void skw_compat_rx_assoc_resp(struct net_device *dev, 
++                                            const struct cfg80211_rx_assoc_resp_data *data)
++{
++    cfg80211_rx_assoc_resp(dev, data);
++}
++#else
+ static inline void skw_compat_rx_assoc_resp(struct net_device *dev,
+ 			struct cfg80211_bss *bss, const u8 *buf, size_t len,
+ 			int uapsd, const u8 *req_ies, size_t req_ies_len)
+@@ -315,6 +322,8 @@ static inline void skw_compat_rx_assoc_resp(struct net_device *dev,
+ #endif
+ }
+ 
++#endif
++
+ static inline void
+ skw_compat_rx_mlme_mgmt(struct net_device *dev, void *buf, size_t len)
+ {
+@@ -473,6 +482,8 @@ static inline void skw_ch_switch_notify(struct net_device *dev,
+ 		struct cfg80211_chan_def *chandef, u8 count,  bool quiet)
+ {
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
++	cfg80211_ch_switch_started_notify(dev, chandef, 0, count, quiet);
++#elif LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+ 	/* punct_bitmap added in 6.3 */
+ 	cfg80211_ch_switch_started_notify(dev, chandef, 0, count, quiet, 1);
+ #elif LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+diff --git a/drivers/net/wireless/ea6621q/skwifi/skw_iface.c b/drivers/net/wireless/ea6621q/skwifi/skw_iface.c
+index 0bae269..11a050d 100644
+--- a/drivers/net/wireless/ea6621q/skwifi/skw_iface.c
++++ b/drivers/net/wireless/ea6621q/skwifi/skw_iface.c
+@@ -611,7 +611,11 @@ static void skw_mode_deinit(struct wiphy *wiphy, struct skw_iface *iface,
+ 			SKW_KFREE(iface->sta.conn);
+ 		}
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6,15,0)
++		timer_delete_sync(&iface->sta.core.timer);
++#else
+ 		del_timer_sync(&iface->sta.core.timer);
++#endif
+ 		cancel_work_sync(&iface->sta.work);
+ 
+ 		skw_set_state(&iface->sta.core.sm, SKW_STATE_NONE);
+diff --git a/drivers/net/wireless/ea6621q/skwifi/skw_util.c b/drivers/net/wireless/ea6621q/skwifi/skw_util.c
+index 6d9a094..8c4d644 100644
+--- a/drivers/net/wireless/ea6621q/skwifi/skw_util.c
++++ b/drivers/net/wireless/ea6621q/skwifi/skw_util.c
+@@ -66,7 +66,11 @@ void skw_file_close(struct file *fp)
+ 	filp_close(fp, NULL);
+ }
+ 
+-MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
++#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0))
++  MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
++#else
++  MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
++#endif
+ #endif
+ 
+ void *skw_build_presp_frame(struct wiphy *wiphy, struct skw_iface *iface,
+diff --git a/drivers/net/wireless/ea6621q/swtbt4l/skw_common.h b/drivers/net/wireless/ea6621q/swtbt4l/skw_common.h
+index 067cefe..243e7f1 100644
+--- a/drivers/net/wireless/ea6621q/swtbt4l/skw_common.h
++++ b/drivers/net/wireless/ea6621q/swtbt4l/skw_common.h
+@@ -107,7 +107,11 @@
+ #endif
+ 
+ #ifdef CONFIG_NO_GKI
+-MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
++#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0))
++  MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
++#else
++  MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
++#endif
+ #endif
+ 
+ typedef struct

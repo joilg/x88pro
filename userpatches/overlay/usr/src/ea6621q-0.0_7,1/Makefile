@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-2.0
+#
+# Makefile for the Linux Wireless network device drivers.
+#
+
+
+
+export CONFIG_SEEKWAVE_BSP_DRIVERS:=m
+export CONFIG_SEEKWAVE_PLD_RELEASE:=n
+export CONFIG_SKW_BSP_UCOM:=m
+export CONFIG_SKW_BSP_BOOT:=m
+export CONFIG_SKW_USB:=m
+export CONFIG_SKW_SDIOHAL:=m
+export CONFIG_SKW_BT:=m
+export CONFIG_WLAN_VENDOR_SEEKWAVE=m
+
+export CONFIG_SKW_VENDOR:=m
+
+export CONFIG_EXTRA_FIRMWARE="RAM_RW_KERNEL_DRAM.bin ROM_EXEC_KERNEL_IRAM.bin EA6621Q_SEEKWAVE_R00005.bin"
+export CONFIG_EXTRA_FIRMWARE_DIR="firmware"
+
+export CONFIG_SKW_PROJECT_NAME:="SEEKWAVE"
+export CONFIG_SKW_DEFAULT_COUNTRY:=""
+export CONFIG_SKW_CHIP_ID:=""
+export CONFIG_SKW_SAP_SME_EXT:=1
+export CONFIG_SKW_STA_SME_EXT:=1
+export CONFIG_SKW_TX_WORKQUEUE:=1
+
+export CONFIG_SKW_LOG_DEBUG:=1
+export CONFIG_SKW_HIGH_PRIORITY:=1
+export CONFIG_SKW_SCAN_RANDOM_MAC:=1
+export CONFIG_SKW_REGD_SELF_MANAGED:=1
+export CONFIG_SKW_RX_REORDER_TIMEOUT:=100
+
+SKW_EXTRA_INC :=./include/linux/platform_data
+SKW_EXTRA_SYMBOLS := ./drivers/seekwaveplatform/Module.symvers
+
+
+#export CONFIG_SKW_LOG_ERROR:=1
+export CONFIG_SKW_LOG_WARN:=1
+#export CONFIG_SKW_LOG_INFO:=1
+# export CONFIG_SKW_LOG_DEBUG:=1
+# export CONFIG_SKW_LOG_DETAIL:=1
+
+obj-$(CONFIG_SEEKWAVE_BSP_DRIVERS) += drivers/net/wireless/ea6621q/
