@@ -336,7 +336,7 @@
 };
 
 &pwm1 {
-	status ="disabled";
+	status = "okay";
 };
 
 &pwm2 {
