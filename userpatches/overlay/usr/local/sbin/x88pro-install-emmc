@@ -132,9 +132,9 @@ detect_emmc_device() {
 	type=$(cat "/sys/block/$(basename "$EMMC_DEVICE")/device/type" 2>/dev/null || echo "")
 	[[ "$type" == "MMC" ]] || die "$EMMC_DEVICE reports type '$type', expected 'MMC'. Refusing to treat it as eMMC."
 
-	if grep -qE "^$(basename "$EMMC_DEVICE")(p[0-9]+)? " /proc/mounts; then
-		die "$EMMC_DEVICE (or one of its partitions) is currently mounted — refusing to touch a mounted device."
-	fi
+	local mounted
+	mounted=$(lsblk -nrpo MOUNTPOINT "$EMMC_DEVICE" 2>/dev/null | grep -v '^$' || true)
+	[[ -z "$mounted" ]] || die "$EMMC_DEVICE (or a partition on it) is currently mounted at: $mounted — refusing to touch a mounted device."
 
 	EMMC_SIZE_BYTES=$(blockdev --getsize64 "$EMMC_DEVICE")
 	(( EMMC_SIZE_BYTES > 1*1024*1024*1024 )) || die "$EMMC_DEVICE reports size ${EMMC_SIZE_BYTES} bytes — too small to be a real eMMC, refusing."
@@ -304,7 +304,7 @@ clone_rootfs_to_emmc() {
 	log "Copying running rootfs (/) to $EMMC_ROOTPART — this can take a while ..."
 	rsync -aHAX --numeric-ids -x \
 		--exclude='/boot/*' \
-		--exclude="${BACKUP_ROOT#/}/*" \
+		--exclude="${BACKUP_ROOT}/*" \
 		--exclude='/proc/*' --exclude='/sys/*' --exclude='/dev/*' \
 		--exclude='/run/*' --exclude='/tmp/*' --exclude='/mnt/*' --exclude='/media/*' \
 		/ "$mnt/root/"
