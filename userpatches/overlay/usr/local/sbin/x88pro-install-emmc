@@ -238,6 +238,30 @@ confirm_or_abort() {
 	[[ "$reply" == "yes" ]] || die "Aborted by user (no changes made)."
 }
 
+# Verify a just-written blob by reading it back from the device and
+# comparing sha256 against the source file. Truncated to the exact source
+# byte length since the device read is rounded up to whole sectors.
+verify_blob() {
+	local src="$1" dev="$2" sector="$3" size sectors expect got
+	size=$(stat -c%s "$src")
+	sectors=$(( (size + 511) / 512 ))
+	expect=$(sha256sum "$src" | awk '{print $1}')
+	got=$(dd if="$dev" bs=512 skip="$sector" count="$sectors" status=none | head -c "$size" | sha256sum | awk '{print $1}')
+	if [[ "$expect" != "$got" ]]; then
+		die "VERIFY FAILED for $src at sector $sector: expected $expect got $got. Restore immediately: dd if=$BACKUP_IMAGE of=$dev bs=1M conv=notrunc,fsync — or use Maskrom+rkdeveloptool."
+	fi
+	log "verified $src at sector $sector (sha256 match)"
+}
+
+install_bootloader() {
+	log "Writing bootloader to $EMMC_DEVICE ..."
+	write_uboot_platform "$UBOOT_DIR" "$EMMC_DEVICE"
+	sync
+	verify_blob "$UBOOT_DIR/idbloader.img" "$EMMC_DEVICE" 64
+	verify_blob "$UBOOT_DIR/u-boot.itb" "$EMMC_DEVICE" 16384
+	log "Bootloader written and verified OK."
+}
+
 main() {
 	parse_args "$@"
 	require_root
@@ -256,8 +280,9 @@ main() {
 
 	confirm_or_abort
 	backup_emmc_boot_area
+	install_bootloader
 
-	log "(bootloader/rootfs write steps not implemented yet)"
+	log "(rootfs write step not implemented yet)"
 }
 
 main "$@"
