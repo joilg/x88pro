@@ -161,6 +161,32 @@ locate_uboot_blobs() {
 	log "U-Boot artifacts: $UBOOT_DIR (idbloader.img, u-boot.itb)"
 }
 
+# Back up the eMMC boot area and partition table BEFORE any write. This runs
+# unconditionally before the first destructive operation (never skippable),
+# because idbloader/u-boot have no A/B redundancy on this hardware and the
+# only other way back is Maskrom + rkdeveloptool.
+backup_emmc_boot_area() {
+	mkdir -p "$BACKUP_ROOT"
+	local ts
+	ts=$(date -u +%Y%m%dT%H%M%SZ)
+	BACKUP_DIR="$BACKUP_ROOT/$ts"
+	mkdir -p "$BACKUP_DIR"
+	BACKUP_IMAGE="$BACKUP_DIR/emmc-first-${BOOT_BACKUP_MIB}MiB.bin"
+	BACKUP_PARTTABLE="$BACKUP_DIR/emmc-gpt.sfdisk"
+
+	log "Backing up first ${BOOT_BACKUP_MIB} MiB of $EMMC_DEVICE -> $BACKUP_IMAGE"
+	dd if="$EMMC_DEVICE" of="$BACKUP_IMAGE" bs=1M count="$BOOT_BACKUP_MIB" status=none
+	sync
+	sha256sum "$BACKUP_IMAGE" >"$BACKUP_IMAGE.sha256"
+
+	log "Backing up partition table of $EMMC_DEVICE -> $BACKUP_PARTTABLE"
+	sfdisk -d "$EMMC_DEVICE" >"$BACKUP_PARTTABLE" 2>/dev/null || log "warning: sfdisk produced no partition table (device may be unpartitioned)"
+
+	log "Backup complete. Emergency restore of the boot area:"
+	log "  dd if=$BACKUP_IMAGE of=$EMMC_DEVICE bs=1M conv=notrunc,fsync"
+	log "If that is not enough, use Maskrom mode + rkdeveloptool (USB-OTG) as a last resort."
+}
+
 main() {
 	parse_args "$@"
 	require_root
@@ -170,7 +196,7 @@ main() {
 	detect_emmc_device
 	locate_uboot_blobs
 
-	log "(detection complete — backup/write/dry-run steps not implemented yet)"
+	log "(dry-run/write steps not implemented yet)"
 }
 
 main "$@"
