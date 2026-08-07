@@ -5,10 +5,15 @@
 #
 # Background: the stock armbian-install/nand-sata-install tool has no backup,
 # verification or dry-run step, and this is a TV box with no reset-to-factory
-# path other than Maskrom + rkdeveloptool. This tool wraps the same, already
-# correct bootloader offsets (idbloader.img@sector64, u-boot.itb@sector16384 —
-# confirmed identical between the shipped Android eMMC and the working microSD
-# image) with the safety checks the stock tool lacks.
+# path other than Maskrom + rkdeveloptool.
+#
+# It also gets the bootloader wrong on this board. The raw offsets it uses are
+# fine (idbloader@sector64, u-boot.itb@sector16384, first partition@sector32768
+# — all confirmed against the factory eMMC GPT), but it writes BOTH bootloader
+# stages, and Armbian's first stage is what makes this board unstable: the DDR
+# init blob lives inside the idbloader, and the generic rk3528-evb one Armbian
+# ships mistrains this board's memory. So this tool writes only stage 2 and
+# preserves the factory stage 1. See install_bootloader() for the evidence.
 #
 # Recovery if something goes wrong: Maskrom mode + rkdeveloptool, or restore
 # the backup this script writes under $BACKUP_ROOT before the first destructive
@@ -20,6 +25,13 @@ PROG=$(basename "$0")
 BACKUP_ROOT="/root/x88pro-emmc-backup"
 BOOT_BACKUP_MIB=32
 BOOTFS_MIB=256
+
+# Raw sector offsets the RK3528 BootROM/SPL expect. Verified against the factory
+# eMMC contents: the shipped GPT has a 4 MiB partition named "uboot" spanning
+# LBA 16384..24575, and the idbloader lives at LBA 64 (with redundant copies at
+# 1088/2112/3136/4160).
+IDBLOADER_SECTOR=64
+UBOOT_ITB_SECTOR=16384
 DRY_RUN=0
 ASSUME_YES=0
 EMMC_DEVICE_OVERRIDE=""
@@ -39,6 +51,11 @@ Usage: $PROG [--dry-run] [--yes] [--device /dev/mmcblkN] [--boot-backup-mib N]
   --boot-backup-mib N    MiB of the eMMC start to back up before writing
                          (default: $BOOT_BACKUP_MIB).
   --help, -h             Show this help.
+
+The eMMC's first-stage bootloader (idbloader at sector $IDBLOADER_SECTOR) is never written:
+its DDR init blob is what trains this board's memory, and the factory one must
+be kept. It has to already be present, so run this on a box whose factory boot
+area is intact — or restore it first with Maskrom + rkdeveloptool.
 EOF
 }
 
@@ -63,7 +80,7 @@ require_root() {
 check_deps() {
 	local missing=() cmd
 	for cmd in parted mkfs.ext4 rsync sfdisk blkid findmnt lsblk wipefs partprobe \
-	           udevadm dd sha256sum blockdev fsck.ext4; do
+	           udevadm dd sha256sum blockdev fsck.ext4 strings; do
 		command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
 	done
 	(( ${#missing[@]} == 0 )) || die "missing required commands: ${missing[*]}"
@@ -142,24 +159,28 @@ detect_emmc_device() {
 	log "eMMC device: $EMMC_DEVICE ($(( EMMC_SIZE_BYTES / 1024 / 1024 )) MiB)"
 }
 
-# Locate the board's idbloader.img/u-boot.itb and the write_uboot_platform()
-# function shipped by the linux-u-boot-x88pro-vendor package. We deliberately
-# reuse this function instead of re-implementing the dd offsets ourselves:
-# research showed the offsets (idbloader@64, u-boot.itb@16384) are already
-# correct and identical to the stock Android layout; the missing piece was
-# always the safety wrapper, not the write logic itself.
+# Locate the board's idbloader.img/u-boot.itb. Note we do NOT use the package's
+# write_uboot_platform() helper: it writes BOTH blobs, and on this board writing
+# Armbian's idbloader is exactly what must be avoided (see install_bootloader).
 locate_uboot_blobs() {
 	[[ -r /usr/lib/u-boot/platform_install.sh ]] || die "/usr/lib/u-boot/platform_install.sh not found — is linux-u-boot-x88pro-vendor installed?"
 	# shellcheck source=/dev/null
 	source /usr/lib/u-boot/platform_install.sh
-	[[ $(type -t write_uboot_platform) == function ]] || die "write_uboot_platform() not defined after sourcing platform_install.sh"
 
 	UBOOT_DIR="${DIR:-}"
 	[[ -n "$UBOOT_DIR" && -d "$UBOOT_DIR" ]] || die "platform_install.sh did not provide a valid \$DIR (got '${UBOOT_DIR:-<empty>}')"
 	[[ -f "$UBOOT_DIR/idbloader.img" ]] || die "idbloader.img not found in $UBOOT_DIR"
 	[[ -f "$UBOOT_DIR/u-boot.itb" ]] || die "u-boot.itb not found in $UBOOT_DIR"
 
-	log "U-Boot artifacts: $UBOOT_DIR (idbloader.img, u-boot.itb)"
+	log "U-Boot artifacts: $UBOOT_DIR (u-boot.itb will be used; idbloader.img will NOT be written)"
+}
+
+# Read the SPL/DDR banner strings out of the idbloader currently on the eMMC.
+# The DRAM init blob lives inside the idbloader, so this identifies which one
+# will be doing memory training on the next boot.
+emmc_idbloader_banner() {
+	dd if="$EMMC_DEVICE" bs=512 skip="$IDBLOADER_SECTOR" count=1024 status=none 2>/dev/null |
+		strings -a | grep -aE 'U-Boot (SPL|TPL) [0-9]|DDR V?[0-9]' | head -4
 }
 
 # Back up the eMMC boot area and partition table BEFORE any write. This runs
@@ -192,13 +213,26 @@ backup_emmc_boot_area() {
 # used by the stock armbian-install script and observed on the working
 # microSD image (partition 1 starts at sector 32768 = 16 MiB in), leaving
 # ample room after idbloader.img (sector 64) and u-boot.itb (sector 16384).
+#
+# Note this deliberately overwrites the factory Android partitions from "misc"
+# (LBA 32768) onwards. That is intended and was verified to boot: without a
+# "misc" partition the factory SPL logs "No misc partition / spl: partition
+# error" and falls back to reading the FIT from raw sector 0x4000, which is
+# exactly where install_bootloader() puts Armbian's u-boot.itb. The factory
+# structures the SPL still needs all sit below this line and are left intact:
+# idbloader (LBA 64), RK vendor data "DVKR" (LBA 7168), "security"/RK secure
+# storage (LBA 8192) and the "uboot" slot itself (LBA 16384).
 FIRSTSECTOR=32768
 bootfs_sectors() { echo $(( BOOTFS_MIB * 2048 )); }
 
 print_plan() {
-	local emmc_mib bootfs_end_sector
+	local emmc_mib bootfs_end_sector stage1
 	emmc_mib=$(( EMMC_SIZE_BYTES / 1024 / 1024 ))
 	bootfs_end_sector=$(( FIRSTSECTOR + $(bootfs_sectors) - 1 ))
+
+	stage1=$(emmc_idbloader_banner | sed 's/^/    currently: /')
+	[[ -n "$stage1" ]] || stage1="    NOT FOUND — installation will refuse to run. Restore the factory
+    boot area first (Maskrom + rkdeveloptool)."
 
 	cat <<EOF
 
@@ -215,10 +249,13 @@ Backup (written before any destructive step):
   first ${BOOT_BACKUP_MIB} MiB       -> ${BACKUP_ROOT}/<timestamp>/emmc-first-${BOOT_BACKUP_MIB}MiB.bin
   partition table (sfdisk -d) -> ${BACKUP_ROOT}/<timestamp>/emmc-gpt.sfdisk
 
-Bootloader (from $UBOOT_DIR):
-  idbloader.img -> $EMMC_DEVICE sector 64    ($(stat -c%s "$UBOOT_DIR/idbloader.img") bytes)
-  u-boot.itb    -> $EMMC_DEVICE sector 16384 ($(stat -c%s "$UBOOT_DIR/u-boot.itb") bytes)
-  each write is verified by reading it back and comparing sha256
+Bootloader:
+  stage 1 (idbloader, sector $IDBLOADER_SECTOR): PRESERVED, not written
+$stage1
+    Armbian's own idbloader carries a DDR blob that is unstable on this board,
+    so the factory first stage — which does the DRAM training — is kept as-is.
+  stage 2 (u-boot.itb, sector $UBOOT_ITB_SECTOR) <- $UBOOT_DIR/u-boot.itb ($(stat -c%s "$UBOOT_DIR/u-boot.itb") bytes)
+    verified after writing by reading it back and comparing sha256
 
 Partition table to be written to $EMMC_DEVICE (ALL EXISTING DATA ON IT IS DESTROYED):
   1: bootfs  ext4  sector $FIRSTSECTOR .. $bootfs_end_sector  (${BOOTFS_MIB} MiB)
@@ -253,13 +290,61 @@ verify_blob() {
 	log "verified $src at sector $sector (sha256 match)"
 }
 
+# Install only the second bootloader stage, preserving the factory first stage.
+#
+# This is the single most important thing this tool does differently from
+# armbian-install, and it was established empirically on real hardware:
+#
+#   * DRAM initialisation happens inside the idbloader (SPL+TPL, which embeds a
+#     Rockchip DDR blob). The factory idbloader carries "DDR V1.04 8b31f80e33",
+#     tuned for this board's actual DDR3 (4096MB, 32-bit, final 786MHz).
+#     Armbian's idbloader is built from the generic rk3528-evb profile and
+#     carries "DDR 665f3e4817 ... fwver: v1.09".
+#   * With Armbian's idbloader in place, boots were unstable in a way that
+#     varied per power-up: FDT_ERR_BADSTRUCTURE, kernel Oops in psci_0_2_init
+#     and setup_arch, "Bad Data CRC" on uInitrd — reproducing even from an
+#     untouched microSD, i.e. marginal memory training, not storage corruption.
+#   * Keeping the factory idbloader and replacing only u-boot.itb gave a clean,
+#     stable boot. So: never overwrite sector 64 on this board.
+#
+# The BootROM loads the idbloader from eMMC before looking at the microSD, so
+# the factory first stage runs even when booting from SD; it then probes MMC2
+# (SD) before MMC1 (eMMC) for the next stage, which is why an inserted SD card
+# always overrides the eMMC and remains a working rescue path.
 install_bootloader() {
-	log "Writing bootloader to $EMMC_DEVICE ..."
-	write_uboot_platform "$UBOOT_DIR" "$EMMC_DEVICE"
+	local banner
+	banner=$(emmc_idbloader_banner || true)
+	[[ -n "$banner" ]] || die "no recognizable idbloader found at sector $IDBLOADER_SECTOR of $EMMC_DEVICE. This tool relies on the factory first-stage loader already being there and refuses to create one, because Armbian's own idbloader is known to be unstable on this board. Restore the factory boot area first (Maskrom + rkdeveloptool)."
+
+	if grep -qi 'armbian' <<<"$banner"; then
+		log "WARNING: the idbloader currently on $EMMC_DEVICE looks like Armbian's, not the factory one:"
+		log "    ${banner//$'\n'/; }"
+		log "WARNING: this build's DDR init is known to be marginal on this board. Consider"
+		log "WARNING: restoring the factory boot area (Maskrom + rkdeveloptool) before relying on eMMC boot."
+	else
+		log "Preserving factory idbloader at sector $IDBLOADER_SECTOR (NOT overwritten):"
+		log "    ${banner//$'\n'/; }"
+	fi
+
+	# Refuse to write past the factory 'uboot' slot (LBA 16384..24575, 4 MiB) or
+	# into the first filesystem.
+	local itb_size itb_sectors itb_end
+	itb_size=$(stat -c%s "$UBOOT_DIR/u-boot.itb")
+	itb_sectors=$(( (itb_size + 511) / 512 ))
+	itb_end=$(( UBOOT_ITB_SECTOR + itb_sectors - 1 ))
+	(( itb_end < FIRSTSECTOR )) || die "u-boot.itb is $itb_size bytes and would span sectors $UBOOT_ITB_SECTOR..$itb_end, colliding with the first partition at sector $FIRSTSECTOR. Refusing to write."
+
+	log "Writing u-boot.itb to $EMMC_DEVICE sectors $UBOOT_ITB_SECTOR..$itb_end ..."
+	dd if="$UBOOT_DIR/u-boot.itb" of="$EMMC_DEVICE" bs=512 seek="$UBOOT_ITB_SECTOR" conv=notrunc,fsync status=none
 	sync
-	verify_blob "$UBOOT_DIR/idbloader.img" "$EMMC_DEVICE" 64
-	verify_blob "$UBOOT_DIR/u-boot.itb" "$EMMC_DEVICE" 16384
-	log "Bootloader written and verified OK."
+	verify_blob "$UBOOT_DIR/u-boot.itb" "$EMMC_DEVICE" "$UBOOT_ITB_SECTOR"
+
+	# Prove we really did not disturb the first stage.
+	local banner_after
+	banner_after=$(emmc_idbloader_banner || true)
+	[[ "$banner_after" == "$banner" ]] || die "the idbloader at sector $IDBLOADER_SECTOR changed during installation — this must never happen. Restore from $BACKUP_IMAGE immediately."
+
+	log "Bootloader stage 2 written and verified OK; stage 1 untouched."
 }
 
 # Partition and format the eMMC. FIRSTSECTOR (32768) leaves the same 16 MiB
