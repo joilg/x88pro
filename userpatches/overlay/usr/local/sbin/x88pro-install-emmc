@@ -19,6 +19,7 @@ set -Eeuo pipefail
 PROG=$(basename "$0")
 BACKUP_ROOT="/root/x88pro-emmc-backup"
 BOOT_BACKUP_MIB=32
+BOOTFS_MIB=256
 DRY_RUN=0
 ASSUME_YES=0
 EMMC_DEVICE_OVERRIDE=""
@@ -187,6 +188,56 @@ backup_emmc_boot_area() {
 	log "If that is not enough, use Maskrom mode + rkdeveloptool (USB-OTG) as a last resort."
 }
 
+# Sector math for the eMMC layout. FIRSTSECTOR matches the offset already
+# used by the stock armbian-install script and observed on the working
+# microSD image (partition 1 starts at sector 32768 = 16 MiB in), leaving
+# ample room after idbloader.img (sector 64) and u-boot.itb (sector 16384).
+FIRSTSECTOR=32768
+bootfs_sectors() { echo $(( BOOTFS_MIB * 2048 )); }
+
+print_plan() {
+	local emmc_mib bootfs_end_sector
+	emmc_mib=$(( EMMC_SIZE_BYTES / 1024 / 1024 ))
+	bootfs_end_sector=$(( FIRSTSECTOR + $(bootfs_sectors) - 1 ))
+
+	cat <<EOF
+
+Detected board: Hugsun X88pro (X88 Pro 13)
+SoC: rk3528a
+
+Boot device:
+  microSD: $BOOT_DEVICE   (never written by this tool)
+  eMMC:    $EMMC_DEVICE
+
+eMMC size: ${emmc_mib} MiB
+
+Backup (written before any destructive step):
+  first ${BOOT_BACKUP_MIB} MiB       -> ${BACKUP_ROOT}/<timestamp>/emmc-first-${BOOT_BACKUP_MIB}MiB.bin
+  partition table (sfdisk -d) -> ${BACKUP_ROOT}/<timestamp>/emmc-gpt.sfdisk
+
+Bootloader (from $UBOOT_DIR):
+  idbloader.img -> $EMMC_DEVICE sector 64    ($(stat -c%s "$UBOOT_DIR/idbloader.img") bytes)
+  u-boot.itb    -> $EMMC_DEVICE sector 16384 ($(stat -c%s "$UBOOT_DIR/u-boot.itb") bytes)
+  each write is verified by reading it back and comparing sha256
+
+Partition table to be written to $EMMC_DEVICE (ALL EXISTING DATA ON IT IS DESTROYED):
+  1: bootfs  ext4  sector $FIRSTSECTOR .. $bootfs_end_sector  (${BOOTFS_MIB} MiB)
+  2: rootfs  ext4  sector $(( bootfs_end_sector + 1 )) .. end
+
+Root filesystem:
+  source      -> / and /boot on this running system ($BOOT_DEVICE)
+  destination -> ${EMMC_DEVICE}p2 and ${EMMC_DEVICE}p1
+
+EOF
+}
+
+confirm_or_abort() {
+	(( ASSUME_YES )) && return 0
+	local reply
+	read -r -p "This will ERASE ALL DATA on $EMMC_DEVICE and is hard to reverse without Maskrom+rkdeveloptool. Type 'yes' to continue: " reply
+	[[ "$reply" == "yes" ]] || die "Aborted by user (no changes made)."
+}
+
 main() {
 	parse_args "$@"
 	require_root
@@ -196,7 +247,17 @@ main() {
 	detect_emmc_device
 	locate_uboot_blobs
 
-	log "(dry-run/write steps not implemented yet)"
+	print_plan
+
+	if (( DRY_RUN )); then
+		echo "NO CHANGES HAVE BEEN MADE"
+		exit 0
+	fi
+
+	confirm_or_abort
+	backup_emmc_boot_area
+
+	log "(bootloader/rootfs write steps not implemented yet)"
 }
 
 main "$@"
