@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+#
+# x88pro-install-emmc — safely transfer a running microSD Armbian install to
+# the internal eMMC of a Hugsun/Rupa X88 Pro 13 (Rockchip RK3528).
+#
+# Background: the stock armbian-install/nand-sata-install tool has no backup,
+# verification or dry-run step, and this is a TV box with no reset-to-factory
+# path other than Maskrom + rkdeveloptool. This tool wraps the same, already
+# correct bootloader offsets (idbloader.img@sector64, u-boot.itb@sector16384 —
+# confirmed identical between the shipped Android eMMC and the working microSD
+# image) with the safety checks the stock tool lacks.
+#
+# Recovery if something goes wrong: Maskrom mode + rkdeveloptool, or restore
+# the backup this script writes under $BACKUP_ROOT before the first destructive
+# write.
+
+set -Eeuo pipefail
+
+PROG=$(basename "$0")
+BACKUP_ROOT="/root/x88pro-emmc-backup"
+BOOT_BACKUP_MIB=32
+DRY_RUN=0
+ASSUME_YES=0
+EMMC_DEVICE_OVERRIDE=""
+
+log() { echo "[$PROG] $*" >&2; }
+die() { echo "[$PROG] ERROR: $*" >&2; exit 1; }
+
+usage() {
+	cat <<EOF
+Usage: $PROG [--dry-run] [--yes] [--device /dev/mmcblkN] [--boot-backup-mib N]
+
+  --dry-run, -n         Show what would be done and exit. No changes made.
+  --yes, -y             Skip the interactive confirmation prompt.
+  --device DEV          Explicitly specify the eMMC device instead of
+                         auto-detecting it. Use only if auto-detection fails
+                         or is ambiguous; double-check it is NOT your microSD.
+  --boot-backup-mib N    MiB of the eMMC start to back up before writing
+                         (default: $BOOT_BACKUP_MIB).
+  --help, -h             Show this help.
+EOF
+}
+
+parse_args() {
+	while (( $# )); do
+		case "$1" in
+			--dry-run|-n) DRY_RUN=1 ;;
+			--yes|-y) ASSUME_YES=1 ;;
+			--device) shift; EMMC_DEVICE_OVERRIDE="${1:?--device requires an argument}" ;;
+			--boot-backup-mib) shift; BOOT_BACKUP_MIB="${1:?--boot-backup-mib requires an argument}" ;;
+			--help|-h) usage; exit 0 ;;
+			*) die "unknown argument: $1 (see --help)" ;;
+		esac
+		shift
+	done
+}
+
+require_root() {
+	[[ $EUID -eq 0 ]] || die "must run as root (sudo $PROG ...)"
+}
+
+check_deps() {
+	local missing=() cmd
+	for cmd in parted mkfs.ext4 rsync sfdisk blkid findmnt lsblk wipefs partprobe \
+	           udevadm dd sha256sum blockdev fsck.ext4; do
+		command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+	done
+	(( ${#missing[@]} == 0 )) || die "missing required commands: ${missing[*]}"
+}
+
+# Refuse to run on anything that isn't recognizably this exact board. This is
+# a physical, hard-to-reverse operation — we would rather fail loudly on
+# unrecognized hardware than guess.
+detect_board() {
+	[[ -r /etc/armbian-release ]] || die "/etc/armbian-release not found — cannot confirm this is the expected Armbian build."
+	local BOARD="" BOARD_NAME=""
+	# shellcheck source=/dev/null
+	source /etc/armbian-release
+	[[ "$BOARD" == "x88pro" ]] || die "unexpected BOARD='$BOARD' in /etc/armbian-release; this tool only supports BOARD=x88pro. Refusing to run."
+
+	local compat
+	compat=$(tr '\0' '\n' </sys/firmware/devicetree/base/compatible 2>/dev/null || true)
+	grep -qx 'hungsun,x88' <<<"$compat" || die "devicetree 'compatible' does not contain 'hungsun,x88' — refusing to run on unrecognized hardware."
+	grep -q '^rockchip,rk3528' <<<"$compat" || die "devicetree 'compatible' does not contain an rk3528 SoC string — refusing to run."
+
+	log "Detected board: ${BOARD_NAME:-Hugsun X88pro}"
+	log "SoC: $(grep '^rockchip,rk3528' <<<"$compat")"
+}
+
+# The device we booted from must never be a write target. We only support
+# installing FROM a running microSD boot (BOOT_SOC's "SD" media type) TO the
+# internal eMMC ("MMC" media type) — never the other way around from this tool.
+detect_boot_device() {
+	local root_src root_pk type
+	root_src=$(findmnt -no SOURCE /) || die "cannot determine root device via findmnt"
+	root_pk=$(lsblk -no PKNAME "$root_src" 2>/dev/null || true)
+	[[ -n "$root_pk" ]] || die "cannot resolve the parent disk of root device $root_src"
+	BOOT_DEVICE="/dev/$root_pk"
+	[[ -b "$BOOT_DEVICE" ]] || die "resolved boot device $BOOT_DEVICE is not a block device"
+
+	type=$(cat "/sys/block/$root_pk/device/type" 2>/dev/null || echo "")
+	[[ "$type" == "SD" ]] || die "current boot device $BOOT_DEVICE reports type '$type', expected 'SD'. This tool only installs FROM a running microSD boot, to avoid ever writing to the media it is running from. Refusing to run."
+
+	log "Boot device (microSD, will NEVER be written by this tool): $BOOT_DEVICE"
+}
+
+detect_emmc_device() {
+	if [[ -n "$EMMC_DEVICE_OVERRIDE" ]]; then
+		EMMC_DEVICE="$EMMC_DEVICE_OVERRIDE"
+		log "Using explicitly specified eMMC device: $EMMC_DEVICE (NOT auto-detected — verify this is correct!)"
+	else
+		local candidates=() path name type
+		for path in /sys/block/mmcblk*; do
+			[[ -e "$path" ]] || continue
+			name=$(basename "$path")
+			[[ "/dev/$name" == "$BOOT_DEVICE" ]] && continue
+			type=$(cat "$path/device/type" 2>/dev/null || echo "")
+			[[ "$type" == "MMC" ]] && candidates+=("/dev/$name")
+		done
+		case "${#candidates[@]}" in
+			0) die "no eMMC (type=MMC) block device found besides the boot device — is this really an X88 Pro with internal eMMC?" ;;
+			1) EMMC_DEVICE="${candidates[0]}" ;;
+			*) die "found multiple eMMC-type candidates: ${candidates[*]} — refusing to guess, pass --device explicitly." ;;
+		esac
+	fi
+
+	[[ "$EMMC_DEVICE" != "$BOOT_DEVICE" ]] || die "internal error: eMMC device resolved to the boot device, aborting."
+	[[ -b "$EMMC_DEVICE" ]] || die "$EMMC_DEVICE is not a block device"
+
+	local type
+	type=$(cat "/sys/block/$(basename "$EMMC_DEVICE")/device/type" 2>/dev/null || echo "")
+	[[ "$type" == "MMC" ]] || die "$EMMC_DEVICE reports type '$type', expected 'MMC'. Refusing to treat it as eMMC."
+
+	if grep -qE "^$(basename "$EMMC_DEVICE")(p[0-9]+)? " /proc/mounts; then
+		die "$EMMC_DEVICE (or one of its partitions) is currently mounted — refusing to touch a mounted device."
+	fi
+
+	EMMC_SIZE_BYTES=$(blockdev --getsize64 "$EMMC_DEVICE")
+	(( EMMC_SIZE_BYTES > 1*1024*1024*1024 )) || die "$EMMC_DEVICE reports size ${EMMC_SIZE_BYTES} bytes — too small to be a real eMMC, refusing."
+
+	log "eMMC device: $EMMC_DEVICE ($(( EMMC_SIZE_BYTES / 1024 / 1024 )) MiB)"
+}
+
+# Locate the board's idbloader.img/u-boot.itb and the write_uboot_platform()
+# function shipped by the linux-u-boot-x88pro-vendor package. We deliberately
+# reuse this function instead of re-implementing the dd offsets ourselves:
+# research showed the offsets (idbloader@64, u-boot.itb@16384) are already
+# correct and identical to the stock Android layout; the missing piece was
+# always the safety wrapper, not the write logic itself.
+locate_uboot_blobs() {
+	[[ -r /usr/lib/u-boot/platform_install.sh ]] || die "/usr/lib/u-boot/platform_install.sh not found — is linux-u-boot-x88pro-vendor installed?"
+	# shellcheck source=/dev/null
+	source /usr/lib/u-boot/platform_install.sh
+	[[ $(type -t write_uboot_platform) == function ]] || die "write_uboot_platform() not defined after sourcing platform_install.sh"
+
+	UBOOT_DIR="${DIR:-}"
+	[[ -n "$UBOOT_DIR" && -d "$UBOOT_DIR" ]] || die "platform_install.sh did not provide a valid \$DIR (got '${UBOOT_DIR:-<empty>}')"
+	[[ -f "$UBOOT_DIR/idbloader.img" ]] || die "idbloader.img not found in $UBOOT_DIR"
+	[[ -f "$UBOOT_DIR/u-boot.itb" ]] || die "u-boot.itb not found in $UBOOT_DIR"
+
+	log "U-Boot artifacts: $UBOOT_DIR (idbloader.img, u-boot.itb)"
+}
+
+main() {
+	parse_args "$@"
+	require_root
+	check_deps
+	detect_board
+	detect_boot_device
+	detect_emmc_device
+	locate_uboot_blobs
+
+	log "(detection complete — backup/write/dry-run steps not implemented yet)"
+}
+
+main "$@"
