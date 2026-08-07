@@ -262,6 +262,78 @@ install_bootloader() {
 	log "Bootloader written and verified OK."
 }
 
+# Partition and format the eMMC. FIRSTSECTOR (32768) leaves the same 16 MiB
+# of headroom after the bootloader that the microSD image uses, so the
+# filesystems below never overlap idbloader.img (sector 64) or u-boot.itb
+# (sector 16384).
+partition_and_format_emmc() {
+	local bootfs_end_sector
+	bootfs_end_sector=$(( FIRSTSECTOR + $(bootfs_sectors) - 1 ))
+
+	log "Wiping partition table on $EMMC_DEVICE and creating the Armbian layout ..."
+	wipefs -a "$EMMC_DEVICE" >/dev/null
+	parted -s "$EMMC_DEVICE" -- mklabel gpt
+	parted -s "$EMMC_DEVICE" -- mkpart bootfs ext4 "${FIRSTSECTOR}s" "${bootfs_end_sector}s"
+	parted -s "$EMMC_DEVICE" -- mkpart rootfs ext4 "$(( bootfs_end_sector + 1 ))s" 100%
+	partprobe "$EMMC_DEVICE"
+	udevadm settle
+
+	EMMC_BOOTPART="${EMMC_DEVICE}p1"
+	EMMC_ROOTPART="${EMMC_DEVICE}p2"
+	[[ -b "$EMMC_BOOTPART" && -b "$EMMC_ROOTPART" ]] || die "expected partitions $EMMC_BOOTPART and $EMMC_ROOTPART not found after partprobe"
+
+	mkfs.ext4 -q -L armbian_boot "$EMMC_BOOTPART"
+	mkfs.ext4 -q -L armbian_root "$EMMC_ROOTPART"
+	sync
+	log "Partitioned and formatted $EMMC_BOOTPART (boot) and $EMMC_ROOTPART (root)."
+}
+
+# Clone the running system's / and /boot onto the new eMMC filesystems, then
+# rewrite the copied /etc/fstab and /boot/armbianEnv.txt to point at the new
+# partitions' UUIDs. boot.scr reads armbianEnv.txt's rootdev at every boot,
+# so this is the only per-installation value that needs updating — U-Boot
+# itself derives which mmc device/partition it booted from dynamically.
+clone_rootfs_to_emmc() {
+	local mnt old_root_uuid old_boot_uuid new_root_uuid new_boot_uuid
+
+	mnt=$(mktemp -d "/mnt/${PROG}.XXXXXX")
+	mkdir -p "$mnt/root" "$mnt/boot"
+	mount "$EMMC_ROOTPART" "$mnt/root"
+	mount "$EMMC_BOOTPART" "$mnt/boot"
+
+	log "Copying running rootfs (/) to $EMMC_ROOTPART — this can take a while ..."
+	rsync -aHAX --numeric-ids -x \
+		--exclude='/boot/*' \
+		--exclude="${BACKUP_ROOT#/}/*" \
+		--exclude='/proc/*' --exclude='/sys/*' --exclude='/dev/*' \
+		--exclude='/run/*' --exclude='/tmp/*' --exclude='/mnt/*' --exclude='/media/*' \
+		/ "$mnt/root/"
+
+	log "Copying /boot to $EMMC_BOOTPART ..."
+	rsync -aHAX --numeric-ids /boot/ "$mnt/boot/"
+
+	new_root_uuid=$(blkid -s UUID -o value "$EMMC_ROOTPART")
+	new_boot_uuid=$(blkid -s UUID -o value "$EMMC_BOOTPART")
+	old_root_uuid=$(findmnt -no UUID /)
+	old_boot_uuid=$(findmnt -no UUID /boot)
+	[[ -n "$new_root_uuid" && -n "$new_boot_uuid" ]] || die "could not read back new filesystem UUIDs after mkfs"
+
+	log "Rewriting /etc/fstab and armbianEnv.txt with the new eMMC UUIDs ..."
+	sed -i "s|UUID=$old_root_uuid|UUID=$new_root_uuid|g; s|UUID=$old_boot_uuid|UUID=$new_boot_uuid|g" "$mnt/root/etc/fstab"
+	if [[ -f "$mnt/boot/armbianEnv.txt" ]]; then
+		sed -i "s|^rootdev=.*|rootdev=UUID=$new_root_uuid|" "$mnt/boot/armbianEnv.txt"
+	else
+		log "warning: no armbianEnv.txt found in /boot to update rootdev="
+	fi
+
+	sync
+	umount "$mnt/boot" "$mnt/root"
+	fsck -f -y "$EMMC_BOOTPART" >/dev/null || true
+	fsck -f -y "$EMMC_ROOTPART" >/dev/null || true
+	rmdir "$mnt/root" "$mnt/boot" "$mnt"
+	log "Rootfs clone complete."
+}
+
 main() {
 	parse_args "$@"
 	require_root
@@ -281,8 +353,13 @@ main() {
 	confirm_or_abort
 	backup_emmc_boot_area
 	install_bootloader
+	partition_and_format_emmc
+	clone_rootfs_to_emmc
 
-	log "(rootfs write step not implemented yet)"
+	log "Done. $EMMC_DEVICE now holds a bootable Armbian install."
+	log "Keep the microSD in place for now; test booting from eMMC deliberately"
+	log "(e.g. by removing the SD) before relying on it, and keep the backup at"
+	log "$BACKUP_DIR until you have confirmed the eMMC boots correctly."
 }
 
 main "$@"
