@@ -4,11 +4,6 @@
 
 
 ## What’s new: 
-09.08.2026
-* `x88pro-install-emmc` was successfully tested on an X88 Pro 13 board
-  revision 1.7. It transfers a running Armbian system from microSD to the
-  internal eMMC while preserving the factory first-stage bootloader.
-
 22.6.2026
 * add first support  for current and edge kernel
       no HDMI yet
@@ -117,42 +112,9 @@ after building, find the compressed image in build/output/images
 
 ### Enable 2nd USB port as host
 
-### Install Armbian to eMMC
-
-> [!CAUTION]
-> Installing to eMMC destroys the existing Android partitions and data. Make a
-> complete backup of the factory eMMC/Android installation before proceeding.
-> Keep a Maskrom recovery method and `rkdeveloptool` available. The automatic
-> backup made by the script covers the boot area and partition table; it is not
-> a complete backup of Android.
-
-Do **not** use the standard `armbian-install` or `nand-sata-install` tools on
-this board. They overwrite the first-stage bootloader (`idbloader`) with a
-generic RK3528 build whose DDR initialization was unstable on the tested box.
-
-The supplied `x88pro-install-emmc` script preserves the factory `idbloader`,
-writes only Armbian's second-stage `u-boot.itb`, creates new boot and root
-filesystems, and copies the running microSD installation to them. It has been
-successfully tested on PCB revision 1.7, but other revisions remain untested.
-The factory boot area on the eMMC must still be intact.
-
-Boot Armbian from microSD and review the detected devices and proposed changes:
-
-```bash
-sudo x88pro-install-emmc --dry-run
-```
-
-If everything is correct, run the interactive installation:
-
-```bash
-sudo x88pro-install-emmc
-```
-
-The script saves its boot-area backup and partition-table dump under
-`/root/x88pro-emmc-backup/` on the microSD system before making destructive
-changes. Do not remove that backup until eMMC boot has been tested. When the
-copy completes, shut the box down, remove the microSD card, and verify that it
-boots from eMMC.
+### EMMC
+ 
+  Armbian build do not support writing to eMMC for TV Boxes.  Do not use  armbian-install to flash eMMC! 
 
 ## Maintainers
 
