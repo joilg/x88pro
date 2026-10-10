@@ -1,0 +1,450 @@
+#!/usr/bin/env bash
+#
+# x88pro-install-emmc — safely transfer a running microSD Armbian install to
+# the internal eMMC of a Hugsun/Rupa X88 Pro 13 (Rockchip RK3528).
+#
+# Background: the stock armbian-install/nand-sata-install tool has no backup,
+# verification or dry-run step, and this is a TV box with no reset-to-factory
+# path other than Maskrom + rkdeveloptool.
+#
+# It also gets the bootloader wrong on this board. The raw offsets it uses are
+# fine (idbloader@sector64, u-boot.itb@sector16384, first partition@sector32768
+# — all confirmed against the factory eMMC GPT), but it writes BOTH bootloader
+# stages, and Armbian's first stage is what makes this board unstable: the DDR
+# init blob lives inside the idbloader, and the generic rk3528-evb one Armbian
+# ships mistrains this board's memory. So this tool writes only stage 2 and
+# preserves the factory stage 1. See install_bootloader() for the evidence.
+#
+# Recovery if something goes wrong: Maskrom mode + rkdeveloptool, or restore
+# the backup this script writes under $BACKUP_ROOT before the first destructive
+# write.
+
+set -Eeuo pipefail
+
+PROG=$(basename "$0")
+BACKUP_ROOT="/root/x88pro-emmc-backup"
+BOOT_BACKUP_MIB=32
+BOOTFS_MIB=256
+
+# Raw sector offsets the RK3528 BootROM/SPL expect. Verified against the factory
+# eMMC contents: the shipped GPT has a 4 MiB partition named "uboot" spanning
+# LBA 16384..24575, and the idbloader lives at LBA 64 (with redundant copies at
+# 1088/2112/3136/4160).
+IDBLOADER_SECTOR=64
+UBOOT_ITB_SECTOR=16384
+DRY_RUN=0
+ASSUME_YES=0
+EMMC_DEVICE_OVERRIDE=""
+
+log() { echo "[$PROG] $*" >&2; }
+die() { echo "[$PROG] ERROR: $*" >&2; exit 1; }
+
+usage() {
+	cat <<EOF
+Usage: $PROG [--dry-run] [--yes] [--device /dev/mmcblkN] [--boot-backup-mib N]
+
+  --dry-run, -n         Show what would be done and exit. No changes made.
+  --yes, -y             Skip the interactive confirmation prompt.
+  --device DEV          Explicitly specify the eMMC device instead of
+                         auto-detecting it. Use only if auto-detection fails
+                         or is ambiguous; double-check it is NOT your microSD.
+  --boot-backup-mib N    MiB of the eMMC start to back up before writing
+                         (default: $BOOT_BACKUP_MIB).
+  --help, -h             Show this help.
+
+The eMMC's first-stage bootloader (idbloader at sector $IDBLOADER_SECTOR) is never written:
+its DDR init blob is what trains this board's memory, and the factory one must
+be kept. It has to already be present, so run this on a box whose factory boot
+area is intact — or restore it first with Maskrom + rkdeveloptool.
+EOF
+}
+
+parse_args() {
+	while (( $# )); do
+		case "$1" in
+			--dry-run|-n) DRY_RUN=1 ;;
+			--yes|-y) ASSUME_YES=1 ;;
+			--device) shift; EMMC_DEVICE_OVERRIDE="${1:?--device requires an argument}" ;;
+			--boot-backup-mib) shift; BOOT_BACKUP_MIB="${1:?--boot-backup-mib requires an argument}" ;;
+			--help|-h) usage; exit 0 ;;
+			*) die "unknown argument: $1 (see --help)" ;;
+		esac
+		shift
+	done
+}
+
+require_root() {
+	[[ $EUID -eq 0 ]] || die "must run as root (sudo $PROG ...)"
+}
+
+check_deps() {
+	local missing=() cmd
+	for cmd in parted mkfs.ext4 rsync sfdisk blkid findmnt lsblk wipefs partprobe \
+	           udevadm dd sha256sum blockdev fsck.ext4 strings; do
+		command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+	done
+	(( ${#missing[@]} == 0 )) || die "missing required commands: ${missing[*]}"
+}
+
+# Refuse to run on anything that isn't recognizably this exact board. This is
+# a physical, hard-to-reverse operation — we would rather fail loudly on
+# unrecognized hardware than guess.
+detect_board() {
+	[[ -r /etc/armbian-release ]] || die "/etc/armbian-release not found — cannot confirm this is the expected Armbian build."
+	local BOARD="" BOARD_NAME=""
+	# shellcheck source=/dev/null
+	source /etc/armbian-release
+	[[ "$BOARD" == "x88pro" ]] || die "unexpected BOARD='$BOARD' in /etc/armbian-release; this tool only supports BOARD=x88pro. Refusing to run."
+
+	local compat
+	compat=$(tr '\0' '\n' </sys/firmware/devicetree/base/compatible 2>/dev/null || true)
+	grep -qx 'hungsun,x88' <<<"$compat" || die "devicetree 'compatible' does not contain 'hungsun,x88' — refusing to run on unrecognized hardware."
+	grep -q '^rockchip,rk3528' <<<"$compat" || die "devicetree 'compatible' does not contain an rk3528 SoC string — refusing to run."
+
+	log "Detected board: ${BOARD_NAME:-Hugsun X88pro}"
+	log "SoC: $(grep '^rockchip,rk3528' <<<"$compat")"
+}
+
+# The device we booted from must never be a write target. We only support
+# installing FROM a running microSD boot (BOOT_SOC's "SD" media type) TO the
+# internal eMMC ("MMC" media type) — never the other way around from this tool.
+detect_boot_device() {
+	local root_src root_pk type
+	root_src=$(findmnt -no SOURCE /) || die "cannot determine root device via findmnt"
+	root_pk=$(lsblk -no PKNAME "$root_src" 2>/dev/null || true)
+	[[ -n "$root_pk" ]] || die "cannot resolve the parent disk of root device $root_src"
+	BOOT_DEVICE="/dev/$root_pk"
+	[[ -b "$BOOT_DEVICE" ]] || die "resolved boot device $BOOT_DEVICE is not a block device"
+
+	type=$(cat "/sys/block/$root_pk/device/type" 2>/dev/null || echo "")
+	[[ "$type" == "SD" ]] || die "current boot device $BOOT_DEVICE reports type '$type', expected 'SD'. This tool only installs FROM a running microSD boot, to avoid ever writing to the media it is running from. Refusing to run."
+
+	log "Boot device (microSD, will NEVER be written by this tool): $BOOT_DEVICE"
+}
+
+detect_emmc_device() {
+	if [[ -n "$EMMC_DEVICE_OVERRIDE" ]]; then
+		EMMC_DEVICE="$EMMC_DEVICE_OVERRIDE"
+		log "Using explicitly specified eMMC device: $EMMC_DEVICE (NOT auto-detected — verify this is correct!)"
+	else
+		local candidates=() path name type
+		for path in /sys/block/mmcblk*; do
+			[[ -e "$path" ]] || continue
+			name=$(basename "$path")
+			[[ "/dev/$name" == "$BOOT_DEVICE" ]] && continue
+			type=$(cat "$path/device/type" 2>/dev/null || echo "")
+			[[ "$type" == "MMC" ]] && candidates+=("/dev/$name")
+		done
+		case "${#candidates[@]}" in
+			0) die "no eMMC (type=MMC) block device found besides the boot device — is this really an X88 Pro with internal eMMC?" ;;
+			1) EMMC_DEVICE="${candidates[0]}" ;;
+			*) die "found multiple eMMC-type candidates: ${candidates[*]} — refusing to guess, pass --device explicitly." ;;
+		esac
+	fi
+
+	[[ "$EMMC_DEVICE" != "$BOOT_DEVICE" ]] || die "internal error: eMMC device resolved to the boot device, aborting."
+	[[ -b "$EMMC_DEVICE" ]] || die "$EMMC_DEVICE is not a block device"
+
+	local type
+	type=$(cat "/sys/block/$(basename "$EMMC_DEVICE")/device/type" 2>/dev/null || echo "")
+	[[ "$type" == "MMC" ]] || die "$EMMC_DEVICE reports type '$type', expected 'MMC'. Refusing to treat it as eMMC."
+
+	local mounted
+	mounted=$(lsblk -nrpo MOUNTPOINT "$EMMC_DEVICE" 2>/dev/null | grep -v '^$' || true)
+	[[ -z "$mounted" ]] || die "$EMMC_DEVICE (or a partition on it) is currently mounted at: $mounted — refusing to touch a mounted device."
+
+	EMMC_SIZE_BYTES=$(blockdev --getsize64 "$EMMC_DEVICE")
+	(( EMMC_SIZE_BYTES > 1*1024*1024*1024 )) || die "$EMMC_DEVICE reports size ${EMMC_SIZE_BYTES} bytes — too small to be a real eMMC, refusing."
+
+	log "eMMC device: $EMMC_DEVICE ($(( EMMC_SIZE_BYTES / 1024 / 1024 )) MiB)"
+}
+
+# Locate the board's idbloader.img/u-boot.itb. Note we do NOT use the package's
+# write_uboot_platform() helper: it writes BOTH blobs, and on this board writing
+# Armbian's idbloader is exactly what must be avoided (see install_bootloader).
+locate_uboot_blobs() {
+	[[ -r /usr/lib/u-boot/platform_install.sh ]] || die "/usr/lib/u-boot/platform_install.sh not found — is linux-u-boot-x88pro-vendor installed?"
+	# shellcheck source=/dev/null
+	source /usr/lib/u-boot/platform_install.sh
+
+	UBOOT_DIR="${DIR:-}"
+	[[ -n "$UBOOT_DIR" && -d "$UBOOT_DIR" ]] || die "platform_install.sh did not provide a valid \$DIR (got '${UBOOT_DIR:-<empty>}')"
+	[[ -f "$UBOOT_DIR/idbloader.img" ]] || die "idbloader.img not found in $UBOOT_DIR"
+	[[ -f "$UBOOT_DIR/u-boot.itb" ]] || die "u-boot.itb not found in $UBOOT_DIR"
+
+	log "U-Boot artifacts: $UBOOT_DIR (u-boot.itb will be used; idbloader.img will NOT be written)"
+}
+
+# Read the SPL/DDR banner strings out of the idbloader currently on the eMMC.
+# The DRAM init blob lives inside the idbloader, so this identifies which one
+# will be doing memory training on the next boot.
+emmc_idbloader_banner() {
+	dd if="$EMMC_DEVICE" bs=512 skip="$IDBLOADER_SECTOR" count=1024 status=none 2>/dev/null |
+		strings -a | grep -aE 'U-Boot (SPL|TPL) [0-9]|DDR V?[0-9]' | head -4
+}
+
+# Back up the eMMC boot area and partition table BEFORE any write. This runs
+# unconditionally before the first destructive operation (never skippable),
+# because idbloader/u-boot have no A/B redundancy on this hardware and the
+# only other way back is Maskrom + rkdeveloptool.
+backup_emmc_boot_area() {
+	mkdir -p "$BACKUP_ROOT"
+	local ts
+	ts=$(date -u +%Y%m%dT%H%M%SZ)
+	BACKUP_DIR="$BACKUP_ROOT/$ts"
+	mkdir -p "$BACKUP_DIR"
+	BACKUP_IMAGE="$BACKUP_DIR/emmc-first-${BOOT_BACKUP_MIB}MiB.bin"
+	BACKUP_PARTTABLE="$BACKUP_DIR/emmc-gpt.sfdisk"
+
+	log "Backing up first ${BOOT_BACKUP_MIB} MiB of $EMMC_DEVICE -> $BACKUP_IMAGE"
+	dd if="$EMMC_DEVICE" of="$BACKUP_IMAGE" bs=1M count="$BOOT_BACKUP_MIB" status=none
+	sync
+	sha256sum "$BACKUP_IMAGE" >"$BACKUP_IMAGE.sha256"
+
+	log "Backing up partition table of $EMMC_DEVICE -> $BACKUP_PARTTABLE"
+	sfdisk -d "$EMMC_DEVICE" >"$BACKUP_PARTTABLE" 2>/dev/null || log "warning: sfdisk produced no partition table (device may be unpartitioned)"
+
+	log "Backup complete. Emergency restore of the boot area:"
+	log "  dd if=$BACKUP_IMAGE of=$EMMC_DEVICE bs=1M conv=notrunc,fsync"
+	log "If that is not enough, use Maskrom mode + rkdeveloptool (USB-OTG) as a last resort."
+}
+
+# Sector math for the eMMC layout. FIRSTSECTOR matches the offset already
+# used by the stock armbian-install script and observed on the working
+# microSD image (partition 1 starts at sector 32768 = 16 MiB in), leaving
+# ample room after idbloader.img (sector 64) and u-boot.itb (sector 16384).
+#
+# Note this deliberately overwrites the factory Android partitions from "misc"
+# (LBA 32768) onwards. That is intended and was verified to boot: without a
+# "misc" partition the factory SPL logs "No misc partition / spl: partition
+# error" and falls back to reading the FIT from raw sector 0x4000, which is
+# exactly where install_bootloader() puts Armbian's u-boot.itb. The factory
+# structures the SPL still needs all sit below this line and are left intact:
+# idbloader (LBA 64), RK vendor data "DVKR" (LBA 7168), "security"/RK secure
+# storage (LBA 8192) and the "uboot" slot itself (LBA 16384).
+FIRSTSECTOR=32768
+bootfs_sectors() { echo $(( BOOTFS_MIB * 2048 )); }
+
+print_plan() {
+	local emmc_mib bootfs_end_sector stage1
+	emmc_mib=$(( EMMC_SIZE_BYTES / 1024 / 1024 ))
+	bootfs_end_sector=$(( FIRSTSECTOR + $(bootfs_sectors) - 1 ))
+
+	stage1=$(emmc_idbloader_banner | sed 's/^/    currently: /')
+	[[ -n "$stage1" ]] || stage1="    NOT FOUND — installation will refuse to run. Restore the factory
+    boot area first (Maskrom + rkdeveloptool)."
+
+	cat <<EOF
+
+Detected board: Hugsun X88pro (X88 Pro 13)
+SoC: rk3528a
+
+Boot device:
+  microSD: $BOOT_DEVICE   (never written by this tool)
+  eMMC:    $EMMC_DEVICE
+
+eMMC size: ${emmc_mib} MiB
+
+Backup (written before any destructive step):
+  first ${BOOT_BACKUP_MIB} MiB       -> ${BACKUP_ROOT}/<timestamp>/emmc-first-${BOOT_BACKUP_MIB}MiB.bin
+  partition table (sfdisk -d) -> ${BACKUP_ROOT}/<timestamp>/emmc-gpt.sfdisk
+
+Bootloader:
+  stage 1 (idbloader, sector $IDBLOADER_SECTOR): PRESERVED, not written
+$stage1
+    Armbian's own idbloader carries a DDR blob that is unstable on this board,
+    so the factory first stage — which does the DRAM training — is kept as-is.
+  stage 2 (u-boot.itb, sector $UBOOT_ITB_SECTOR) <- $UBOOT_DIR/u-boot.itb ($(stat -c%s "$UBOOT_DIR/u-boot.itb") bytes)
+    verified after writing by reading it back and comparing sha256
+
+Partition table to be written to $EMMC_DEVICE (ALL EXISTING DATA ON IT IS DESTROYED):
+  1: bootfs  ext4  sector $FIRSTSECTOR .. $bootfs_end_sector  (${BOOTFS_MIB} MiB)
+  2: rootfs  ext4  sector $(( bootfs_end_sector + 1 )) .. end
+
+Root filesystem:
+  source      -> / and /boot on this running system ($BOOT_DEVICE)
+  destination -> ${EMMC_DEVICE}p2 and ${EMMC_DEVICE}p1
+
+EOF
+}
+
+confirm_or_abort() {
+	(( ASSUME_YES )) && return 0
+	local reply
+	read -r -p "This will ERASE ALL DATA on $EMMC_DEVICE and is hard to reverse without Maskrom+rkdeveloptool. Type 'yes' to continue: " reply
+	[[ "$reply" == "yes" ]] || die "Aborted by user (no changes made)."
+}
+
+# Verify a just-written blob by reading it back from the device and
+# comparing sha256 against the source file. Truncated to the exact source
+# byte length since the device read is rounded up to whole sectors.
+verify_blob() {
+	local src="$1" dev="$2" sector="$3" size sectors expect got
+	size=$(stat -c%s "$src")
+	sectors=$(( (size + 511) / 512 ))
+	expect=$(sha256sum "$src" | awk '{print $1}')
+	got=$(dd if="$dev" bs=512 skip="$sector" count="$sectors" status=none | head -c "$size" | sha256sum | awk '{print $1}')
+	if [[ "$expect" != "$got" ]]; then
+		die "VERIFY FAILED for $src at sector $sector: expected $expect got $got. Restore immediately: dd if=$BACKUP_IMAGE of=$dev bs=1M conv=notrunc,fsync — or use Maskrom+rkdeveloptool."
+	fi
+	log "verified $src at sector $sector (sha256 match)"
+}
+
+# Install only the second bootloader stage, preserving the factory first stage.
+#
+# This is the single most important thing this tool does differently from
+# armbian-install, and it was established empirically on real hardware:
+#
+#   * DRAM initialisation happens inside the idbloader (SPL+TPL, which embeds a
+#     Rockchip DDR blob). The factory idbloader carries "DDR V1.04 8b31f80e33",
+#     tuned for this board's actual DDR3 (4096MB, 32-bit, final 786MHz).
+#     Armbian's idbloader is built from the generic rk3528-evb profile and
+#     carries "DDR 665f3e4817 ... fwver: v1.09".
+#   * With Armbian's idbloader in place, boots were unstable in a way that
+#     varied per power-up: FDT_ERR_BADSTRUCTURE, kernel Oops in psci_0_2_init
+#     and setup_arch, "Bad Data CRC" on uInitrd — reproducing even from an
+#     untouched microSD, i.e. marginal memory training, not storage corruption.
+#   * Keeping the factory idbloader and replacing only u-boot.itb gave a clean,
+#     stable boot. So: never overwrite sector 64 on this board.
+#
+# The BootROM loads the idbloader from eMMC before looking at the microSD, so
+# the factory first stage runs even when booting from SD; it then probes MMC2
+# (SD) before MMC1 (eMMC) for the next stage, which is why an inserted SD card
+# always overrides the eMMC and remains a working rescue path.
+install_bootloader() {
+	local banner
+	banner=$(emmc_idbloader_banner || true)
+	[[ -n "$banner" ]] || die "no recognizable idbloader found at sector $IDBLOADER_SECTOR of $EMMC_DEVICE. This tool relies on the factory first-stage loader already being there and refuses to create one, because Armbian's own idbloader is known to be unstable on this board. Restore the factory boot area first (Maskrom + rkdeveloptool)."
+
+	if grep -qi 'armbian' <<<"$banner"; then
+		log "WARNING: the idbloader currently on $EMMC_DEVICE looks like Armbian's, not the factory one:"
+		log "    ${banner//$'\n'/; }"
+		log "WARNING: this build's DDR init is known to be marginal on this board. Consider"
+		log "WARNING: restoring the factory boot area (Maskrom + rkdeveloptool) before relying on eMMC boot."
+	else
+		log "Preserving factory idbloader at sector $IDBLOADER_SECTOR (NOT overwritten):"
+		log "    ${banner//$'\n'/; }"
+	fi
+
+	# Refuse to write past the factory 'uboot' slot (LBA 16384..24575, 4 MiB) or
+	# into the first filesystem.
+	local itb_size itb_sectors itb_end
+	itb_size=$(stat -c%s "$UBOOT_DIR/u-boot.itb")
+	itb_sectors=$(( (itb_size + 511) / 512 ))
+	itb_end=$(( UBOOT_ITB_SECTOR + itb_sectors - 1 ))
+	(( itb_end < FIRSTSECTOR )) || die "u-boot.itb is $itb_size bytes and would span sectors $UBOOT_ITB_SECTOR..$itb_end, colliding with the first partition at sector $FIRSTSECTOR. Refusing to write."
+
+	log "Writing u-boot.itb to $EMMC_DEVICE sectors $UBOOT_ITB_SECTOR..$itb_end ..."
+	dd if="$UBOOT_DIR/u-boot.itb" of="$EMMC_DEVICE" bs=512 seek="$UBOOT_ITB_SECTOR" conv=notrunc,fsync status=none
+	sync
+	verify_blob "$UBOOT_DIR/u-boot.itb" "$EMMC_DEVICE" "$UBOOT_ITB_SECTOR"
+
+	# Prove we really did not disturb the first stage.
+	local banner_after
+	banner_after=$(emmc_idbloader_banner || true)
+	[[ "$banner_after" == "$banner" ]] || die "the idbloader at sector $IDBLOADER_SECTOR changed during installation — this must never happen. Restore from $BACKUP_IMAGE immediately."
+
+	log "Bootloader stage 2 written and verified OK; stage 1 untouched."
+}
+
+# Partition and format the eMMC. FIRSTSECTOR (32768) leaves the same 16 MiB
+# of headroom after the bootloader that the microSD image uses, so the
+# filesystems below never overlap idbloader.img (sector 64) or u-boot.itb
+# (sector 16384).
+partition_and_format_emmc() {
+	local bootfs_end_sector
+	bootfs_end_sector=$(( FIRSTSECTOR + $(bootfs_sectors) - 1 ))
+
+	log "Wiping partition table on $EMMC_DEVICE and creating the Armbian layout ..."
+	wipefs -a "$EMMC_DEVICE" >/dev/null
+	parted -s "$EMMC_DEVICE" -- mklabel gpt
+	parted -s "$EMMC_DEVICE" -- mkpart bootfs ext4 "${FIRSTSECTOR}s" "${bootfs_end_sector}s"
+	parted -s "$EMMC_DEVICE" -- mkpart rootfs ext4 "$(( bootfs_end_sector + 1 ))s" 100%
+	partprobe "$EMMC_DEVICE"
+	udevadm settle
+
+	EMMC_BOOTPART="${EMMC_DEVICE}p1"
+	EMMC_ROOTPART="${EMMC_DEVICE}p2"
+	[[ -b "$EMMC_BOOTPART" && -b "$EMMC_ROOTPART" ]] || die "expected partitions $EMMC_BOOTPART and $EMMC_ROOTPART not found after partprobe"
+
+	mkfs.ext4 -q -L armbian_boot "$EMMC_BOOTPART"
+	mkfs.ext4 -q -L armbian_root "$EMMC_ROOTPART"
+	sync
+	log "Partitioned and formatted $EMMC_BOOTPART (boot) and $EMMC_ROOTPART (root)."
+}
+
+# Clone the running system's / and /boot onto the new eMMC filesystems, then
+# rewrite the copied /etc/fstab and /boot/armbianEnv.txt to point at the new
+# partitions' UUIDs. boot.scr reads armbianEnv.txt's rootdev at every boot,
+# so this is the only per-installation value that needs updating — U-Boot
+# itself derives which mmc device/partition it booted from dynamically.
+clone_rootfs_to_emmc() {
+	local mnt old_root_uuid old_boot_uuid new_root_uuid new_boot_uuid
+
+	mnt=$(mktemp -d "/mnt/${PROG}.XXXXXX")
+	mkdir -p "$mnt/root" "$mnt/boot"
+	mount "$EMMC_ROOTPART" "$mnt/root"
+	mount "$EMMC_BOOTPART" "$mnt/boot"
+
+	log "Copying running rootfs (/) to $EMMC_ROOTPART — this can take a while ..."
+	rsync -aHAX --numeric-ids -x \
+		--exclude='/boot/*' \
+		--exclude="${BACKUP_ROOT}/*" \
+		--exclude='/proc/*' --exclude='/sys/*' --exclude='/dev/*' \
+		--exclude='/run/*' --exclude='/tmp/*' --exclude='/mnt/*' --exclude='/media/*' \
+		/ "$mnt/root/"
+
+	log "Copying /boot to $EMMC_BOOTPART ..."
+	rsync -aHAX --numeric-ids /boot/ "$mnt/boot/"
+
+	new_root_uuid=$(blkid -s UUID -o value "$EMMC_ROOTPART")
+	new_boot_uuid=$(blkid -s UUID -o value "$EMMC_BOOTPART")
+	old_root_uuid=$(findmnt -no UUID /)
+	old_boot_uuid=$(findmnt -no UUID /boot)
+	[[ -n "$new_root_uuid" && -n "$new_boot_uuid" ]] || die "could not read back new filesystem UUIDs after mkfs"
+
+	log "Rewriting /etc/fstab and armbianEnv.txt with the new eMMC UUIDs ..."
+	sed -i "s|UUID=$old_root_uuid|UUID=$new_root_uuid|g; s|UUID=$old_boot_uuid|UUID=$new_boot_uuid|g" "$mnt/root/etc/fstab"
+	if [[ -f "$mnt/boot/armbianEnv.txt" ]]; then
+		sed -i "s|^rootdev=.*|rootdev=UUID=$new_root_uuid|" "$mnt/boot/armbianEnv.txt"
+	else
+		log "warning: no armbianEnv.txt found in /boot to update rootdev="
+	fi
+
+	sync
+	umount "$mnt/boot" "$mnt/root"
+	fsck -f -y "$EMMC_BOOTPART" >/dev/null || true
+	fsck -f -y "$EMMC_ROOTPART" >/dev/null || true
+	rmdir "$mnt/root" "$mnt/boot" "$mnt"
+	log "Rootfs clone complete."
+}
+
+main() {
+	parse_args "$@"
+	require_root
+	check_deps
+	detect_board
+	detect_boot_device
+	detect_emmc_device
+	locate_uboot_blobs
+
+	print_plan
+
+	if (( DRY_RUN )); then
+		echo "NO CHANGES HAVE BEEN MADE"
+		exit 0
+	fi
+
+	confirm_or_abort
+	backup_emmc_boot_area
+	install_bootloader
+	partition_and_format_emmc
+	clone_rootfs_to_emmc
+
+	log "Done. $EMMC_DEVICE now holds a bootable Armbian install."
+	log "Keep the microSD in place for now; test booting from eMMC deliberately"
+	log "(e.g. by removing the SD) before relying on it, and keep the backup at"
+	log "$BACKUP_DIR until you have confirmed the eMMC boots correctly."
+}
+
+main "$@"
