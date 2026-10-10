@@ -1,0 +1,39 @@
+/dts-v1/;
+/plugin/;
+
+/*
+ * rk3528-x88pro: vdd-cpu / vdd-gpu / vdd-logic are pwm-regulators referencing
+ * PWM0/1/2, but the board DTB leaves those controllers disabled, so they fail
+ * with "pwm-regulator: Failed to get PWM". Consequences: no cpufreq at all (CPU
+ * pinned at 1.2 GHz instead of 2.016 GHz) and the Mali GPU never probes.
+ *
+ * KERNEL REQUIREMENT: vendor 6.1.172 or newer -- Armbian BRANCH=vendor, which
+ * currently resolves to rk-6.1-rkr7.2. On those kernels the IR remote keeps
+ * working alongside this overlay: remotectl-pwm requests the shared PWM block
+ * IRQ (0x35 / Linux 30) with IRQF_SHARED, so it coexists with rockchip-pwm,
+ * which already requested it shared.
+ *
+ * On vendor 6.1.115 and older this overlay DISABLES THE IR REMOTE. There
+ * remotectl-pwm requests that same IRQ without IRQF_SHARED and loses it --
+ * "cannot claim IRQ 30", probe fails with -16, and pwm@ffa90030 (the IR
+ * receiver, rockchip,remotectl-pwm, in the same block) never binds. On such a
+ * kernel, enable this only if you do not need the remote -- e.g. a headless box,
+ * or one driven over SSH / HDMI-CEC / USB keyboard.
+ */
+
+/ {
+	fragment@0 {
+		target-path = "/pwm@ffa90000";	/* vdd-gpu   */
+		__overlay__ { status = "okay"; };
+	};
+
+	fragment@1 {
+		target-path = "/pwm@ffa90010";	/* vdd-cpu   */
+		__overlay__ { status = "okay"; };
+	};
+
+	fragment@2 {
+		target-path = "/pwm@ffa90020";	/* vdd-logic */
+		__overlay__ { status = "okay"; };
+	};
+};
