@@ -1,0 +1,11 @@
+[Unit]
+Description=H96 Max front-panel display
+DefaultDependencies=no
+After=systemd-modules-load.service
+
+[Service]
+ExecStart=/usr/local/sbin/h96max-display
+Restart=on-failure
+
+[Install]
+WantedBy=sysinit.target

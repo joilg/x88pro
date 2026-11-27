@@ -1,0 +1,187 @@
+diff --git a/Documentation/devicetree/bindings/iommu/rockchip,iommu.yaml b/Documentation/devicetree/bindings/iommu/rockchip,iommu.yaml
+index 83d7e7c..a696646 100644
+--- a/Documentation/devicetree/bindings/iommu/rockchip,iommu.yaml
++++ b/Documentation/devicetree/bindings/iommu/rockchip,iommu.yaml
+@@ -25,6 +25,7 @@ properties:
+           - rockchip,rk3568-iommu
+       - items:
+           - enum:
++              - rockchip,rk3528-vdec-iommu
+               - rockchip,rk3576-iommu
+               - rockchip,rk3576-npu-iommu
+               - rockchip,rk3588-iommu
+@@ -56,7 +57,7 @@ properties:
+     items:
+       - const: aclk
+       - const: iface
+-      - const: npu
++      - enum: [npu, hevc_cabac]
+       - const: aclk_cbuf
+       - const: hclk_cbuf
+ 
+@@ -94,11 +95,27 @@ allOf:
+         clock-names:
+           minItems: 5
+     else:
+-      properties:
+-        clocks:
+-          maxItems: 2
+-        clock-names:
+-          maxItems: 2
++      if:
++        properties:
++          compatible:
++            contains:
++              const: rockchip,rk3528-vdec-iommu
++      then:
++        properties:
++          clocks:
++            minItems: 3
++            maxItems: 3
++          clock-names:
++            items:
++              - const: aclk
++              - const: iface
++              - const: hevc_cabac
++      else:
++        properties:
++          clocks:
++            maxItems: 2
++          clock-names:
++            maxItems: 2
+ 
+ additionalProperties: false
+ 
+diff --git a/Documentation/devicetree/bindings/media/rockchip,vdec.yaml b/Documentation/devicetree/bindings/media/rockchip,vdec.yaml
+index 4f38a0e..868d2a5 100644
+--- a/Documentation/devicetree/bindings/media/rockchip,vdec.yaml
++++ b/Documentation/devicetree/bindings/media/rockchip,vdec.yaml
+@@ -18,6 +18,7 @@ properties:
+     oneOf:
+       - const: rockchip,rk3288-vdec
+       - const: rockchip,rk3399-vdec
++      - const: rockchip,rk3528-vdec
+       - const: rockchip,rk3576-vdec
+       - const: rockchip,rk3588-vdec
+       - items:
+@@ -36,6 +37,7 @@ properties:
+           - const: link
+           - const: function
+           - const: cache
++        minItems: 2
+       - items:
+           - const: function
+           - const: link
+@@ -47,7 +49,7 @@ properties:
+     maxItems: 1
+ 
+   clocks:
+-    minItems: 4
++    minItems: 3
+     items:
+       - description: The Video Decoder AXI interface clock
+       - description: The Video Decoder AHB interface clock
+@@ -56,11 +58,11 @@ properties:
+       - description: The Video decoder HEVC CABAC clock
+ 
+   clock-names:
+-    minItems: 4
++    minItems: 3
+     items:
+       - const: axi
+       - const: ahb
+-      - const: cabac
++      - enum: [cabac, hevc_cabac]
+       - const: core
+       - const: hevc_cabac
+ 
+@@ -102,40 +104,77 @@ required:
+   - interrupts
+   - clocks
+   - clock-names
+-  - power-domains
+ 
+ allOf:
+   - if:
+       properties:
+         compatible:
+           contains:
+-            enum:
+-              - rockchip,rk3576-vdec
+-              - rockchip,rk3588-vdec
++            const: rockchip,rk3528-vdec
+     then:
+       properties:
+         reg:
+-          minItems: 3
++          minItems: 2
++          maxItems: 2
+         reg-names:
+-          minItems: 3
++          minItems: 2
++          maxItems: 2
+         clocks:
+-          minItems: 5
++          maxItems: 3
+         clock-names:
+-          minItems: 5
+-        resets:
+-          minItems: 5
+-        reset-names:
+-          minItems: 5
++          items:
++            - const: axi
++            - const: ahb
++            - const: hevc_cabac
++        resets: false
++        reset-names: false
+       required:
+         - reg-names
++    else:
++      required:
++        - power-domains
++  - if:
++      properties:
++        compatible:
++          contains:
++            enum:
++              - rockchip,rk3528-vdec
++              - rockchip,rk3576-vdec
++              - rockchip,rk3588-vdec
++    then:
++      if:
++        properties:
++          compatible:
++            contains:
++              enum:
++                - rockchip,rk3576-vdec
++                - rockchip,rk3588-vdec
++      then:
++        properties:
++          reg:
++            minItems: 3
++          reg-names:
++            minItems: 3
++          clocks:
++            minItems: 5
++          clock-names:
++            minItems: 5
++          resets:
++            minItems: 5
++          reset-names:
++            minItems: 5
++        required:
++          - reg-names
+     else:
+       properties:
+         reg:
+           maxItems: 1
+         reg-names: false
+         clocks:
++          minItems: 4
+           maxItems: 4
+         clock-names:
++          minItems: 4
+           maxItems: 4
+         resets: false
+         reset-names: false

@@ -1,0 +1,8 @@
+# verbosity=7
+# bootlogo=false
+# earlycon=on
+test=1
+# debug=7
+# initcall_debug loglevel=8
+serialcon="ttyS0"
+extraargs="ignore_loglevel earlycon cma=128M"

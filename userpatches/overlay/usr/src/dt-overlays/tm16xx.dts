@@ -1,0 +1,44 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+
+    fragment@0 {
+        target-path = "/spi-aux-display/display@0/digits/";
+        __overlay__ {
+			digit@0 {
+				reg = <0>;
+				segments = <0 3>, <0 1>, <0 2>, <0 6>, <0 4>, <0 5>, <0 0>;
+           };
+        };
+    };
+				
+    fragment@1 {
+        target-path = "/spi-aux-display/display@0/digits/";
+        __overlay__ {
+			digit@1 {
+				//segments = <1 3>, <1 1>, <1 2>, <1 6>, <1 4>, <1 5>, <1 0>;
+				segments = <1 6>, <1 2>, <1 5>, <1 3>, <1 4>, <1 2>, <1 0>;
+           };
+        };
+    };
+				
+    fragment@2 {
+        target-path = "/spi-aux-display/display@0/digits/";
+        __overlay__ {
+			digit@2 {
+				//segments = <2 3>, <2 1>, <2 2>, <2 6>, <2 4>, <2 5>, <2 0>;
+				segments = <2 0>, <2 1>, <2 2>, <2 3>, <2 4>, <2 5>, <2 6>;
+           };
+        };
+    };
+				
+    fragment@3 {
+        target-path = "/spi-aux-display/display@0/digits/";
+        __overlay__ {
+			digit@3 {
+				segments = <3 6>, <3 1>, <3 2>, <3 3>, <3 4>, <3 5>, <3 0>;
+           };
+        };
+    };
+};

@@ -1,0 +1,53 @@
+/dts-v1/;
+/plugin/;
+
+/* enable x88pro13  V1.4  dt wifi overlay for ea6521 wifi chip 
+ * 	install:  cd /usr/src/dt-overlays/  &&  sudo armbian-add-overlay rk3528-skw_light.dts  && reboot 
+  *				sudo reboot  
+  * mount /dev/mmcblk0p1 /mnt
+  test:      cat /proc/device-tree/seekwcn_boot/ 
+ */
+
+&{/} {
+	compatible = "rockchip,rk3528";
+
+	seekwcn_boot {
+		compatible = "seekwave,sv6160";
+		dma_type = <0x01>;
+		status = "okay";
+	};
+
+	seekwcn_sv6160lite {
+		compatible = "seekwave,sv6160lite";
+		dma_type = <0x01>;
+		status = "okay";
+	};
+
+	wlan {
+		compatible = "wlan-platdata";
+		wifi_chip_type = [00];
+		WIFI,host_wake_irq =  <&gpio1 7 0>;		// <0xa6 0x07 0x00>;
+		WIFI,reset_gpio =        <&gpio1 6 0>;		// <0xa6 0x06 0x00>;
+		pinctrl-0 = <&wif_host_wake_irq>;
+		pinctrl-names = "default";
+		rockchip,grf = <0x0f>;
+		status = "okay";
+	};
+
+	bluetooth {
+		compatible = "bluetooth-platdata";
+		BT,reset_gpio =      <&gpio1 17 0>;		// <0xa6 0x11 0x00>
+		BT,wake_host_irq = <&gpio1 18 0>;		//<0xa6 0x12 0x00>
+		uart_rts_gpios = 		<&gpio1 10 1>;		//<0xa6 0x0a 0x01>
+		pinctrl-names = "default ",  "rts_gpio";
+		pinctrl-0 = <&uart2m1_gpios>, <&uart2m1_rtsn>;
+		status = "okay";
+	};
+};
+
+//&pinctrl {
+//	uart2m1-rtsn {
+//		rockchip,pins = <1 10 1 &pcfg_pull_none>;
+//	};
+//};
+

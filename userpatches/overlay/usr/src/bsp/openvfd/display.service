@@ -1,0 +1,15 @@
+[Unit]
+Description=TM16xx Display Service
+ConditionPathIsDirectory=/sys/class/leds/display
+After=time-sync.target
+Wants=time-sync.target
+
+[Service]
+ExecStart=/usr/sbin/display-service
+ExecStop=/bin/kill -s SIGTERM $MAINPID
+Restart=always
+User=root
+Type=simple
+
+[Install]
+WantedBy=basic.target

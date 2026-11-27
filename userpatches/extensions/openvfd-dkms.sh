@@ -15,8 +15,12 @@ function post_install_kernel_debs__build_openvfd_dkms_kernel_module() {
 		return 0
 	fi
 	[[ "${INSTALL_HEADERS}" != "yes" ]] || [[ "${KERNEL_HAS_WORKING_HEADERS}" != "yes" ]] && return 0
+	chroot_sdcard_apt_get_install dkms build-essential
 	display_alert "Install openvfd-dkms packages, will build kernel module in chroot" "${EXTENSION}" "info"
-	declare -g if_error_detail_message="openvfd-dkms build failed, extension 'openvfd-dkms'"
-	declare -ag if_error_find_files_sdcard=("/var/lib/dkms/openvfd*/*/build/*.log")
-	use_clean_environment="yes" chroot_sdcard_apt_get_install "openvfd-dkms openvfd-utils v4l-utils"
+    use_clean_environment="yes" chroot_sdcard dkms add -m openvfd -v 8fadd10
+    use_clean_environment="yes" chroot_sdcard dkms build -m openvfd -v 8fadd10 -k "${kernel_version}"
+    use_clean_environment="yes" chroot_sdcard dkms install -m openvfd -v 8fadd10 -k "${kernel_version}"
+    use_clean_environment="yes" chroot_sdcard depmod -a "${kernel_version}"
+    display_alert "openvfd modules installed" "${kernel_version}" "info"
+
 }

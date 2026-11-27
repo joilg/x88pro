@@ -19,6 +19,7 @@ BUILD_DESKTOP=$4
 
 Main() {
 	cp -r /tmp/overlay/* /
+	chmod +x /root/provisioning.sh
 	sync
 
 } # Main

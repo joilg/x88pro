@@ -10,6 +10,7 @@
 #include "rk3528.dtsi"
 #include "rk3528-linux.dtsi"
 
+
 / {
 	model = "Hungsun X88 TV box";
 	compatible = "hungsun,x88",  "rockchip,rk3528";
@@ -95,7 +96,7 @@
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		enable-active-high;
-		gpio = <&gpio4 RK_PB5 GPIO_ACTIVE_HIGH>;
+		gpio = <&gpio4 RK_PB4 GPIO_ACTIVE_HIGH>;
 		vin-supply = <&vcc5v0_sys>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&vcc5v0_host_en>;
@@ -213,7 +214,7 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&wifi_enable_h &clkm1_32k_out>;
 		reset-gpios = <&gpio1 RK_PA6 GPIO_ACTIVE_LOW>;
-		post-power-on-delay-ms = <140>;
+		post-power-on-delay-ms = <300>;
 	};
 
 	wireless_bluetooth: wireless-bluetooth {
@@ -239,8 +240,27 @@
 		status = "okay";
 	};
 
+ 	dummy_codec: dummy-codec{
+		#sound-dai-cells = <0x00>;
+		compatible = "rockchip,dummy-codec";
+		status = "disabled";
+	};
 
-    skykirin_led: skykirin-led {
+	pdm_mic_array: pdm-mic-array {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "rockchip,pdm-mic-array";
+		status = "disabled";
+
+		simple-audio-card,codec {
+			sound-dai = <&dummy_codec>;
+		};
+
+		simple-audio-card,cpu {
+			sound-dai = <&pdm>;
+		};
+	};
+
+	skykirin_led: skykirin-led {
         compatible = "skykirin-ht1628";
         spi_clk = <&gpio4 RK_PA4 GPIO_ACTIVE_HIGH>;
         spi_cs = <&gpio4 RK_PA5 GPIO_ACTIVE_HIGH>;
@@ -260,7 +280,7 @@
 		status = "okay";
 	};
 
-	adc-keys {
+	adc_keys: adc-keys {
 		status = "okay";
 		compatible = "adc-keys";
 		io-channels = <&saradc 0x01>;
@@ -268,7 +288,7 @@
 		keyup-threshold-microvolt = <1800000>;
 		poll-interval = <100>;
 
-		vol-up-key {
+		button-vol-up {
 			label = "volume up";
 			linux,code = <0x73>;
 			press-threshold-microvolt = <1750>;
@@ -290,16 +310,25 @@
 		gpio_chip_wake = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>;		// <0x24 0x11 0x00>
 		gpio_chip_en   =   <&gpio1 RK_PA6 GPIO_ACTIVE_HIGH>; 		// <0x24 0x06 0x00>
         pinctrl-names = "default";
-		status = "okay";
+		status = "disabled";
 	};
 
-	sky-storage {
+	seekwcn_sv6160lite: seekwcn-sv6160lite {
+		compatible = "seekwave,sv6160lite";
+		dma_type = <1>;
+		status = "disabled";
+	};
+
+	sky_storage: sky-storage {
 		compatible = "rockchip,hgs_vendor_storage";
 		status = "okay";
 	};
 
 	gpio_leds: gpio-leds {
 		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&ir_led &pwr_green_led>;
+
 
 		ir {
 			gpios = <&gpio4 RK_PB7 GPIO_ACTIVE_HIGH>;
@@ -315,23 +344,81 @@
 			retain-state-shutdown;
 		};
 	};
+
+	bt_sco: bt-sco {
+		#sound-dai-cells = <0x01>;
+		compatible = "delta,dfbmcs320";
+		status = "disabled";
+	};
+
+	bt_sound: bt-sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,bitclock-inversion = <0x00>;
+		simple-audio-card,format = "dsp_a";
+		simple-audio-card,mclk-fs = <0x100>;
+		simple-audio-card,name = "rockchip,bt";
+		status = "disabled";
+
+		simple-audio-card,codec {
+			sound-dai = <&bt_sco 1>;
+		};
+
+		simple-audio-card,cpu {
+			sound-dai = <&sai0>;
+		};
+	};
+
+	spdif_out: spdif-out {
+		#sound-dai-cells = <0x00>;
+		compatible = "linux,spdif-dit";
+		status = "okay";
+	};
+
+	spdif_sound: spdif-sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,mclk-fs = <0x80>;
+		simple-audio-card,name = "ROCKCHIP,SPDIF";
+		status = "okay";
+
+		simple-audio-card,codec {
+			sound-dai = <&spdif_out>;
+		};
+
+		simple-audio-card,cpu {
+			sound-dai = <&spdif_8ch>;
+		};
+	};
+
 };
 /*
 &fiq_debugger {
-    rockchip,serial-id = <0x0>; 
-    rockchip,signal-irq = <0xbc>;
+    rockchip,serial-id = <0>; 
+    rockchip,signal-irq = <188>;
     rockchip,wake-irq = <0x0>;
     interrupts = <0x0 0x121 0x4>, <0x0 0x8f 0x4>;
     interrupt-names = "fiq", "wakeup";
     pinctrl-names = "default";
     pinctrl-0 = <&uart0m1_xfer>; 
-    status = "okay";
+    status = "disabled";
 }
 */
+
+&reserved_memory {
+	cma {
+		compatible = "shared-dma-pool";
+		linux,cma-default;
+		reusable;
+		size = <0x00 0x800000>;
+	};
+};
 
 &gmac0 {
 	tx_delay = <0x30>;
 	/* rx_delay = <0x3f>; */
+	status = "okay";
+};
+
+&pwm0 {
 	status = "okay";
 };
 
@@ -340,7 +427,7 @@
 };
 
 &pwm2 {
-	status ="disabled";
+	status ="okay";
 };
 
 &pwm3 {
@@ -459,13 +546,17 @@
 &hdmiphy {
 	status = "okay";
 };
-/*
+
 &tve {
 	status = "okay";
 };
-*/
+
+spdif_8ch {
+	status = "okay";
+};
+
 &tve_in_vp1 {
-	status = "disabled";
+	status = "okay";
 };
 
 &iep {
@@ -497,7 +588,7 @@
 };
 
 &rkvdec {
-	status = "disabled";
+	status = "okay";
 };
 
 &rkvdec_mmu {
@@ -505,7 +596,7 @@
 };
 
 &rkvenc {
-	status = "disabled";
+	status = "okay";
 };
 
 &rkvenc_mmu {
@@ -603,15 +694,11 @@
 	cap-mmc-highspeed;
 	cap-sd-highspeed;
 	disable-wp;
-	max-frequency = <150000000>;
+	max-frequency = <50000000>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdmmc_clk &sdmmc_cmd &sdmmc_det &sdmmc_bus4>;
 	rockchip,default-sample-phase = <90>;
 	supports-sd;
-	sd-uhs-sdr12;
-	sd-uhs-sdr25;
-	sd-uhs-sdr50;
-	sd-uhs-sdr104;
 	vqmmc-supply = <&vccio_sd>;
 	vmmc-supply = <&vcc_sd>;
 	status = "okay";
@@ -703,6 +790,7 @@
 	status = "okay";
 	pinctrl-names = "default";
 	pinctrl-0 = <&i2c1m0_xfer>;
+	status = "okay";
 
 	hym8563: hym8563@51 {
 		compatible = "haoyu,hym8563";
@@ -713,14 +801,14 @@
 		interrupts = <RK_PB2 IRQ_TYPE_EDGE_FALLING>;
 		wakeup-source;
 		#clock-cells = <0>;
-		status = "disabled";
+		status = "disabled";    /* not avaliable on most boards, enabled by overlay */
 	};
 };
 
 &pinctrl {
 	usb {
 		vcc5v0_host_en: vcc5v0-host-en {
-			rockchip,pins = <4 RK_PB5 RK_FUNC_GPIO &pcfg_pull_none>;
+			rockchip,pins = <4 RK_PB4 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 
@@ -746,6 +834,16 @@
 		hym8563_irq: hym8563-irq {
 			rockchip,pins = <4 RK_PB2 RK_FUNC_GPIO &pcfg_pull_none>;
 			irq_gpio = <&gpio4 RK_PB2 IRQ_TYPE_EDGE_FALLING>;	
+		};
+	};
+
+	gpio-leds {
+		ir_led: ir-led {
+			rockchip,pins = <4 RK_PB7 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		pwr_green_led: pwr-green-led {
+			rockchip,pins = <4 RK_PC1 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
 	};
 };

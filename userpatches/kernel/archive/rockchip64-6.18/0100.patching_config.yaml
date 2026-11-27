@@ -3,8 +3,8 @@ config:
   # Just some info stuff; not used by the patching scripts
   name: rockchip64-6.18
   kind: kernel
-  type: mainline   # or: vendor
-  branch: linux-6.19.y
+  type: edge   # or: vendor
+  branch: linux-6.18.y
   last-known-good-tag:  v6.14-rc2
 
   # .dts files in these directories will be copied as-is to the build tree; later ones overwrite earlier ones.
@@ -19,7 +19,7 @@ config:
     - { source: "overlay", target: "arch/arm64/boot/dts/rockchip/overlay" }
 
   auto-patch-dt-makefile:
-    - { directory: "arch/arm64/boot/dts/rockchip", config-var: "CONFIG_ARCH_ROCKCHIP" }
+    - { directory: "arch/arm64/boot/dts/rockchip", config-var: "CONFIG_ARCH_ROCKCHIP"}
 
   # configuration for when applying patches to git / auto-rewriting patches (development cycle helpers)
   patches-to-git:

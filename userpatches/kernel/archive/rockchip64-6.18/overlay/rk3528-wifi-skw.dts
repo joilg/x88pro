@@ -1,0 +1,46 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/rockchip.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	metadata {
+		title = "Enable SeekBoot";
+		compatible = "unknown";
+		category = "misc";
+		exclusive = "GPIO1_C2", "GPIO1_C1";
+		description = "Enable WiFi for  Seekwave WiFi chip.";
+	};
+};
+
+&seekwcn_boot {
+		compatible = "seekwave,sv6160";
+		dma_type = <0x01>;    /*1:ADMA,2:SDMA*/
+		skw_dram_path = "/usr/lib/firmware/skw/RAM_RW_KERNEL_DRAM.bin";
+		skw_iram_path = "/usr/lib/firmware/skw/ROM_EXEC_KERNEL_IRAM.bin";
+		seekwave_nv_name = "SEEKWAVE_NV_SWT6652_SHARE.bin";
+		bt_antenna = <0>;   /* no BT_antenna setting */
+		gpio_host_wake = <&gpio1 RK_PC2 GPIO_ACTIVE_HIGH>;		// 50 <0x24 0x12 0x00>
+		gpio_chip_wake = <&gpio1 RK_PC1 GPIO_ACTIVE_HIGH>;		// 49 <0x24 0x11 0x00>
+		//gpio_chip_en   =   <&gpio1 RK_PC0 GPIO_ACTIVE_HIGH>; 		// 38 <0x24 0x06 0x00>
+ 		pinctrl-names = "default";
+		pinctrl-0 = <&skw_host_wake>, <&skw_chip_wake>, <&skw_chip_en >;
+		status = "okay";
+	};
+
+
+&pinctrl {
+	seek_boot {
+		skw_host_wake: skw-host-wake {
+			rockchip,pins = <1 RK_PC2 RK_FUNC_GPIO &pcfg_pull_down>;		
+		};
+		skw_chip_wake: skw-chip-wake {
+			rockchip,pins = <1 RK_PC1 RK_FUNC_GPIO &pcfg_pull_down>;		
+		};
+//		skw_chip_en: skw-chip-en {
+//			rockchip,pins = <1 RK_PC0 RK_FUNC_GPIO &pcfg_pull_down>;
+//		};
+	};
+};

@@ -1,0 +1,200 @@
+--- a/drivers/net/wireless/ea6621q/skwifi/skw_cfg80211.c
++++ b/drivers/net/wireless/ea6621q/skwifi/skw_cfg80211.c
+@@ -3485,13 +3485,23 @@
+ 	return skw_cookie;
+ }
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
++static int skw_remain_on_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
++				 struct ieee80211_channel *chan,
++				 unsigned int duration, u64 cookie, const u8 *rx_addr)
++#else
+ static int skw_remain_on_channel(struct wiphy *wiphy, struct wireless_dev *wdev,
+ 				 struct ieee80211_channel *chan,
+ 				 unsigned int duration, u64 *cookie, const u8 *rx_addr)
++#endif
+ {
+ 	int ret;
+ 	struct skw_roc_param roc;
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
++	u64 tx_cookie = cookie;
++#else
+ 	u64 tx_cookie = skw_tx_cookie();
++#endif
+ 	struct skw_iface *iface = SKW_WDEV_TO_IFACE(wdev);
+ 
+ 	/* The firmware ROC command does not consume a per-request RX address. */
+@@ -3503,7 +3513,10 @@
+ 	roc.enable = 1;
+ 	roc.channel_num = chan->hw_value;
+ 	roc.duration = duration;
+-	roc.cookie = *cookie = tx_cookie;
++#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 3, 0)
++	*cookie = tx_cookie;
++#endif
++	roc.cookie = tx_cookie;
+ 	//TBD: define the referenced value
+ 	if (chan->flags & IEEE80211_CHAN_NO_HT40MINUS)
+ 		roc.channel_type = 2;
+@@ -3576,14 +3589,16 @@
+ 	}
+ }
+ 
+-int skw_mgmt_tx(struct wiphy *wiphy, struct skw_iface *iface,
+-		struct ieee80211_channel *chan, u32 wait, u64 *cookie,
+-		bool dont_wait_ack, const void *frame, int frame_len)
++static int skw_mgmt_tx_with_cookie(struct wiphy *wiphy,
++				   struct skw_iface *iface,
++				   struct ieee80211_channel *chan, u32 wait,
++				   u64 tx_cookie, u64 *cookie_out,
++				   bool dont_wait_ack, const void *frame,
++				   int frame_len)
+ {
+ 	int ret, total_len;
+ 	struct skw_mgmt_tx_param *param;
+ 	const struct ieee80211_mgmt *mgmt = frame;
+-	u64 tx_cookie = skw_tx_cookie();
+ 	u16 fc = SKW_MGMT_SFC(mgmt->frame_control);
+ 
+ 	if (!chan || !frame)
+@@ -3603,7 +3618,10 @@
+ 	param->wait = wait;
+ 	param->channel = chan->hw_value;
+ 	param->dont_wait_for_ack = dont_wait_ack;
+-	param->cookie = *cookie = tx_cookie;
++	param->cookie = tx_cookie;
++
++	if (cookie_out)
++		*cookie_out = tx_cookie;
+ 
+ 	memcpy(param->mgmt, frame, frame_len);
+ 	param->mgmt_frame_len = frame_len;
+@@ -3625,6 +3643,18 @@
+ 	return ret;
+ }
+ 
++/* Internal MLME callers still need the driver to generate a cookie. */
++int skw_mgmt_tx(struct wiphy *wiphy, struct skw_iface *iface,
++		struct ieee80211_channel *chan, u32 wait, u64 *cookie,
++		bool dont_wait_ack, const void *frame, int frame_len)
++{
++	u64 tx_cookie = skw_tx_cookie();
++
++	return skw_mgmt_tx_with_cookie(wiphy, iface, chan, wait,
++				       tx_cookie, cookie, dont_wait_ack,
++				       frame, frame_len);
++}
++
+ static inline bool skw_is_rrm_report(const void *buf, int buf_len)
+ {
+ 	const struct ieee80211_mgmt *mgmt = buf;
+@@ -3645,9 +3675,11 @@
+ 	return true;
+ }
+ 
+-static int __skw_cfg80211_mgmt_tx(struct wiphy *wiphy, struct skw_iface *iface,
++static int __skw_cfg80211_mgmt_tx(struct wiphy *wiphy,
++				  struct skw_iface *iface,
+ 				  struct ieee80211_channel *chan, u32 wait,
+-				  u64 *cookie, bool dont_wait_for_ack,
++				  u64 tx_cookie, u64 *cookie_out,
++				  bool dont_wait_for_ack,
+ 				  const void *frame, int frame_len)
+ {
+ 	int limit_len;
+@@ -3701,9 +3733,10 @@
+ 				memcpy(data, frame, head_offset);
+ 				memcpy(data + head_offset, pos, elem_len);
+ 
+-				ret = skw_mgmt_tx(wiphy, iface, tx_chan, wait,
+-						cookie, dont_wait_for_ack,
+-						data, elem_len + head_offset);
++				ret = skw_mgmt_tx_with_cookie(wiphy, iface, tx_chan,
++						wait, tx_cookie, cookie_out,
++						dont_wait_for_ack, data,
++						elem_len + head_offset);
+ 
+ 				pos = next;
+ 				elem_len = 0;
+@@ -3720,19 +3753,33 @@
+ 
+ #undef SKW_MGMT_TX_LEN
+ 
+-	return skw_mgmt_tx(wiphy, iface, tx_chan, wait, cookie,
+-			dont_wait_for_ack, frame, frame_len);
+-}
+-
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
++	return skw_mgmt_tx_with_cookie(wiphy, iface, tx_chan, wait,
++				       tx_cookie, cookie_out,
++				       dont_wait_for_ack, frame, frame_len);
++}
++
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
++static int skw_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
++				struct cfg80211_mgmt_tx_params *params,
++				u64 cookie)
++{
++	struct skw_iface *iface = SKW_WDEV_TO_IFACE(wdev);
++
++	return __skw_cfg80211_mgmt_tx(wiphy, iface, params->chan,
++				      params->wait, cookie, NULL,
++				      params->dont_wait_for_ack,
++				      params->buf, params->len);
++}
++#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0)
+ static int skw_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
+ 				struct cfg80211_mgmt_tx_params *params,
+ 				u64 *cookie)
+ {
+ 	struct skw_iface *iface = SKW_WDEV_TO_IFACE(wdev);
++	u64 tx_cookie = skw_tx_cookie();
+ 
+ 	return __skw_cfg80211_mgmt_tx(wiphy, iface, params->chan,
+-				      params->wait, cookie,
++				      params->wait, tx_cookie, cookie,
+ 				      params->dont_wait_for_ack,
+ 				      params->buf, params->len);
+ }
+@@ -3743,9 +3790,11 @@
+ 			  bool no_cck, bool dont_wait_for_ack, u64 *cookie)
+ {
+ 	struct skw_iface *iface = SKW_WDEV_TO_IFACE(wdev);
+-
+-	return __skw_cfg80211_mgmt_tx(wiphy, iface, chan, wait, cookie,
+-			dont_wait_for_ack, buf, len);
++	u64 tx_cookie = skw_tx_cookie();
++
++	return __skw_cfg80211_mgmt_tx(wiphy, iface, chan, wait,
++				      tx_cookie, cookie,
++				      dont_wait_for_ack, buf, len);
+ }
+ #endif
+ 
+@@ -4620,8 +4669,13 @@
+ }
+ 
+ 
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
++static int skw_probe_peer(struct wiphy *wiphy, struct net_device *dev,
++			  const u8 *peer, u64 cookie)
++#else
+ static int skw_probe_client(struct wiphy *wiphy, struct net_device *dev,
+ 			    const u8 *peer, u64 *cookie)
++#endif
+ {
+ 	skw_dbg("traced\n");
+ 
+@@ -4893,7 +4947,12 @@
+ 	.tdls_cancel_channel_switch = skw_tdls_cancel_chn_switch,
+ #endif
+ 	.set_wakeup = skw_set_wakeup,
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
++	.probe_peer = skw_probe_peer,
++#else
+ 	.probe_client = skw_probe_client,
++#endif
++
+ 	.dump_survey = skw_dump_survey,
+ 	.set_monitor_channel = skw_set_monitor_channel,
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)

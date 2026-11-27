@@ -1,0 +1,180 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+/* RK3528 blocks not yet described by the native stable tree. */
+
+#include "rk3528.dtsi"
+#include <dt-bindings/soc/rockchip,vop2.h>
+
+&{/soc} {
+	sram@fe480000 {
+		compatible = "mmio-sram";
+		reg = <0x0 0xfe480000 0x0 0xc000>;
+		ranges = <0x0 0x0 0xfe480000 0xc000>;
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		vdec_sram: rkvdec-sram@0 {
+			reg = <0x0 0xc000>;
+			pool;
+		};
+	};
+
+	vdec_mmu: iommu@ff740800 {
+		compatible = "rockchip,rk3528-vdec-iommu", "rockchip,rk3568-iommu";
+		reg = <0x0 0xff740800 0x0 0x40>,
+		      <0x0 0xff740900 0x0 0x40>;
+		interrupts = <GIC_SPI 95 IRQ_TYPE_LEVEL_HIGH>;
+		/* Both MMUs need the CABAC clock during reset. */
+		clocks = <&cru ACLK_RKVDEC>, <&cru HCLK_RKVDEC>,
+			 <&cru CLK_HEVC_CA_RKVDEC>;
+		clock-names = "aclk", "iface", "hevc_cabac";
+		#iommu-cells = <0>;
+		status = "disabled";
+	};
+
+	vdec: video-codec@ff740000 {
+		compatible = "rockchip,rk3528-vdec";
+		reg = <0x0 0xff740000 0x0 0x100>,
+		      <0x0 0xff740100 0x0 0x400>;
+		reg-names = "link", "function";
+		interrupts = <GIC_SPI 94 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru ACLK_RKVDEC>, <&cru HCLK_RKVDEC>,
+			 <&cru CLK_HEVC_CA_RKVDEC>;
+		clock-names = "axi", "ahb", "hevc_cabac";
+		assigned-clocks = <&cru ACLK_RKVDEC>, <&cru CLK_HEVC_CA_RKVDEC>;
+		assigned-clock-rates = <340000000>, <600000000>;
+		iommus = <&vdec_mmu>;
+		sram = <&vdec_sram>;
+		status = "disabled";
+	};
+
+	sai2: sai@ffb90000 {
+		compatible = "rockchip,rk3528-sai", "rockchip,rk3576-sai";
+		reg = <0x0 0xffb90000 0x0 0x1000>;
+		interrupts = <GIC_SPI 127 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru MCLK_SAI_I2S2>, <&cru HCLK_SAI_I2S2>;
+		clock-names = "mclk", "hclk";
+		dmas = <&dmac 4>;
+		dma-names = "tx";
+		resets = <&cru SRST_M_SAI_I2S2>, <&cru SRST_H_SAI_I2S2>;
+		reset-names = "m", "h";
+		#sound-dai-cells = <0>;
+		status = "disabled";
+	};
+
+	acodec: audio-codec@ffe10000 {
+		compatible = "rockchip,rk3528-codec";
+		reg = <0x0 0xffe10000 0x0 0x1000>;
+		clocks = <&cru PCLK_ACODEC>, <&cru MCLK_ACODEC_TX>;
+		clock-names = "pclk", "mclk";
+		resets = <&cru SRST_P_ACODEC>;
+		reset-names = "acodec";
+		#sound-dai-cells = <0>;
+		status = "disabled";
+	};
+
+	sai3: sai@ffb70000 {
+		compatible = "rockchip,rk3528-sai", "rockchip,rk3576-sai";
+		reg = <0x0 0xffb70000 0x0 0x1000>;
+		interrupts = <GIC_SPI 128 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru MCLK_SAI_I2S3>, <&cru HCLK_SAI_I2S3>;
+		clock-names = "mclk", "hclk";
+		dmas = <&dmac 5>;
+		dma-names = "tx";
+		power-domains = <&power RK3528_PD_VO>;
+		resets = <&cru SRST_M_SAI_I2S3>, <&cru SRST_H_SAI_I2S3>;
+		reset-names = "m", "h";
+		#sound-dai-cells = <0>;
+		status = "disabled";
+	};
+
+	spdif: spdif@ffbc0000 {
+		compatible = "rockchip,rk3568-spdif";
+		reg = <0x0 0xffbc0000 0x0 0x1000>;
+		interrupts = <GIC_SPI 130 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru MCLK_SPDIF>, <&cru HCLK_SPDIF>;
+		clock-names = "mclk", "hclk";
+		dmas = <&dmac 7>;
+		dma-names = "tx";
+		#sound-dai-cells = <0>;
+		status = "disabled";
+	};
+
+	vop: vop@ff840000 {
+		compatible = "rockchip,rk3528-vop";
+		reg = <0x0 0xff840000 0x0 0x3000>;
+		reg-names = "vop";
+		interrupts = <GIC_SPI 109 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru ACLK_VOP>,
+			 <&cru HCLK_VOP>,
+			 <&cru DCLK_VOP0>;
+		clock-names = "aclk", "hclk", "dclk_vp0";
+		assigned-clocks = <&cru DCLK_VOP0>;
+		assigned-clock-parents = <&hdmiphy>;
+		power-domains = <&power RK3528_PD_VO>;
+		status = "disabled";
+
+		vop_out: ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			vp0: port@0 {
+				reg = <0>;
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				vp0_out_hdmi: endpoint@ROCKCHIP_VOP2_EP_HDMI0 {
+					reg = <ROCKCHIP_VOP2_EP_HDMI0>;
+					remote-endpoint = <&hdmi_in_vp0>;
+				};
+			};
+		};
+	};
+
+	hdmi: hdmi@ff8d0000 {
+		compatible = "rockchip,rk3528-dw-hdmi";
+		reg = <0x0 0xff8d0000 0x0 0x20000>;
+		interrupts = <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru PCLK_HDMI>,
+			 <&cru CLK_SFR_HDMI>,
+			 <&cru CLK_CEC_HDMI>;
+		clock-names = "iahb", "isfr", "cec";
+		phys = <&hdmiphy>;
+		phy-names = "hdmi";
+		power-domains = <&power RK3528_PD_VO>;
+		reg-io-width = <4>;
+		rockchip,grf = <&vo_grf>;
+		#sound-dai-cells = <0>;
+		status = "disabled";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			hdmi_in: port@0 {
+				reg = <0>;
+
+				hdmi_in_vp0: endpoint {
+					remote-endpoint = <&vp0_out_hdmi>;
+				};
+			};
+
+			hdmi_out: port@1 {
+				reg = <1>;
+			};
+		};
+	};
+
+	hdmiphy: phy@ffe00000 {
+		compatible = "rockchip,rk3528-hdmi-phy";
+		reg = <0x0 0xffe00000 0x0 0x10000>;
+		interrupts = <GIC_SPI 101 IRQ_TYPE_LEVEL_HIGH>;
+		clocks = <&cru PCLK_HDMIPHY>, <&xin24m>;
+		clock-names = "sysclk", "refoclk";
+		clock-output-names = "clk_hdmiphy_pixel_io";
+		#clock-cells = <0>;
+		#phy-cells = <0>;
+		power-domains = <&power RK3528_PD_VO>;
+		status = "disabled";
+	};
+
+};

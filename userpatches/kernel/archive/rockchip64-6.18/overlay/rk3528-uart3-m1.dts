@@ -1,0 +1,21 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	metadata {
+		title = "Enable UART3-M1";
+		compatible = "radxa,rock-2a", "radxa,rock-2f";
+		category = "misc";
+		exclusive = "GPIO4_C0", "GPIO4_B7";
+		description = "Enable UART3-M1.
+On Radxa ROCK 2A this is TX pin 13 & RX pin 11.
+On Radxa ROCK 2F this is TX pin 13 & RX pin 11.
+";
+	};
+};
+
+&uart3 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart3m1_xfer>;
+};

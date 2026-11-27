@@ -1,0 +1,26 @@
+From: W132D maintainers <tech@wenziwanka.com>
+Subject: [PATCH] media rkvdec support for W132D
+
+Locally maintained for the native Linux stable tree.
+Original changes by wenziwanka <tech@wenziwanka.com>.
+
+diff --git a/drivers/media/platform/rockchip/rkvdec/rkvdec.c b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+index 1d1e9bf..c5a8cb8 100644
+--- a/drivers/media/platform/rockchip/rkvdec/rkvdec.c
++++ b/drivers/media/platform/rockchip/rkvdec/rkvdec.c
+@@ -1760,6 +1760,15 @@ static const struct of_device_id of_rkvdec_match[] = {
+ 		.compatible = "rockchip,rk3576-vdec",
+ 		.data = &vdpu383_variant,
+ 	},
++	{
++		/*
++		 * RK3528's decoder is VDPU382. Rockchip's own BSP drives it with
++		 * the same dev_ops/trans_info/hw_info as RK3588's VDPU381; the only
++		 * delta is the reset routine, which this driver does not use.
++		 */
++		.compatible = "rockchip,rk3528-vdec",
++		.data = &vdpu381_variant,
++	},
+ 	{ /* sentinel */ }
+ };
+ MODULE_DEVICE_TABLE(of, of_rkvdec_match);

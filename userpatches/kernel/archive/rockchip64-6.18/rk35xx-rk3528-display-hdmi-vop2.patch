@@ -1,0 +1,1073 @@
+From: W132D maintainers <tech@wenziwanka.com>
+Subject: [PATCH] RK3528 HDMI/display support for H96 Max
+
+Locally maintained RK3528 HDMI/display support used by H96 Max on the native Linux stable tree.
+Original changes by wenziwanka <tech@wenziwanka.com>.
+
+Include common PC pixel clocks, the complete RK3528 PHY tuning table,
+explicit Esmart line-buffer allocation and clock error handling. Reject
+RGB modes beyond the sink TMDS limit or without required SCDC support.
+YCbCr 4:2:0 and deep-color negotiation remain unsupported.
+
+--- a/drivers/phy/rockchip/phy-rockchip-inno-hdmi.c
++++ b/drivers/phy/rockchip/phy-rockchip-inno-hdmi.c
+@@ -420,6 +420,7 @@
+ 	{229500000, 286875000,  1,  191, 0, 2, 2,  1, 3, 2,  2, 0,      0x0},
+ 	{234000000, 234000000,  1,   39, 0, 0, 0,  1, 0, 1,  1, 0,      0x0},
+ 	{234000000, 292500000,  1,  195, 0, 2, 2,  1, 3, 2,  2, 0,      0x0},
++	{234590000, 234590000,  1,   78, 0, 1, 1,  1, 0, 2,  2, 0, 0x3258bf},
+ 	{241500000, 241500000,  2,  161, 0, 1, 1,  1, 0, 2,  2, 0,      0x0},
+ 	{241500000, 301875000,  1,  201, 0, 2, 2,  1, 3, 2,  2, 0,      0x0},
+ 	{245250000, 245250000,  4,  327, 0, 1, 1,  1, 0, 2,  2, 0,      0x0},
+@@ -440,6 +441,7 @@
+ 	{296703000, 370878750,  1,  123, 0, 3, 1,  1, 3, 1,  1, 0, 0xa051eb},
+ 	{297000000, 297000000,  1,   99, 0, 1, 1,  1, 0, 2,  2, 0,      0x0},
+ 	{297000000, 371250000,  4,  495, 0, 3, 1,  1, 3, 1,  1, 0,      0x0},
++	{304250000, 304250000,  3,  304, 0, 1, 1,  1, 0, 2,  2, 0, 0x400000},
+ 	{312250000, 312250000,  9,  468, 0, 0, 0,  1, 0, 1,  1, 0, 0x600000},
+ 	{312250000, 390312500,  1,  130, 0, 3, 1,  1, 3, 1,  1, 0, 0x1aaab0},
+ 	{317000000, 317000000,  3,  317, 0, 1, 1,  1, 0, 2,  2, 0,      0x0},
+@@ -456,8 +458,11 @@
+ 	{380500000, 475625000,  1,  158, 0, 3, 1,  1, 3, 1,  1, 0, 0x8aaab0},
+ 	{443250000, 443250000,  1,   73, 0, 2, 0,  1, 0, 1,  1, 0, 0xe00000},
+ 	{443250000, 554062500,  1,   92, 0, 2, 0,  1, 3, 0,  0, 1, 0x580000},
++	{497750000, 497750000,  3,  248, 0, 2, 0,  1, 0, 1,  1, 0, 0xe00000},
+ 	{505250000, 505250000,  9,  757, 0, 2, 0,  1, 0, 1,  1, 0, 0xe00000},
++	{533250000, 533250000,  1,   88, 0, 2, 0,  1, 0, 1,  1, 0, 0xe00000},
+ 	{552750000, 552750000,  3,  276, 0, 2, 0,  1, 0, 1,  1, 0, 0x600000},
++	{586000000, 586000000,  3,  293, 0, 2, 0,  1, 0, 1,  1, 0,      0x0},
+ 	{593407000, 296703500,  3,  296, 0, 1, 1,  1, 0, 1,  1, 0, 0xb41893},
+ 	{593407000, 370879375,  4,  494, 0, 3, 1,  1, 3, 0,  0, 1, 0x817e4a},
+ 	{593407000, 593407000,  3,  296, 0, 2, 0,  1, 0, 1,  1, 0, 0xb41893},
+@@ -467,14 +472,25 @@
+ 	{ /* sentinel */ }
+ };
+ 
++/*
++ * The version field selects entries per PHY revision: bits 0-1 are the
++ * RK3228/RK3328 revisions read from the efuse, RK3528 uses bit 3.
++ */
++#define INNO_HDMI_PHY_VERSION_RK3528		BIT(3)
++
+ static const struct post_pll_config post_pll_cfg_table[] = {
+ 	{33750000,  1, 40, 8, 1},
+ 	{33750000,  1, 80, 8, 2},
++	{33750000,  1, 10, 2, INNO_HDMI_PHY_VERSION_RK3528},
+ 	{74250000,  1, 40, 8, 1},
+ 	{74250000, 18, 80, 8, 2},
++	{74250000,  1, 20, 4, INNO_HDMI_PHY_VERSION_RK3528},
+ 	{148500000, 2, 40, 4, 3},
++	{148500000, 1, 10, 2, INNO_HDMI_PHY_VERSION_RK3528},
+ 	{297000000, 4, 40, 2, 3},
++	{297000000, 2, 20, 2, INNO_HDMI_PHY_VERSION_RK3528},
+ 	{594000000, 8, 40, 1, 3},
++	{594000000, 4, 20, 1, INNO_HDMI_PHY_VERSION_RK3528},
+ 	{ /* sentinel */ }
+ };
+ 
+@@ -516,6 +532,44 @@
+ 	}, { /* sentinel */ },
+ };
+ 
++/*
++ * RK3528 uses a different set of tuning registers:
++ * bias-clk, bias-data, voltage-clk, voltage-data, pre-emphasis-data,
++ * termination references, clock/data termination and reference control.
++ * Values follow the RK3528 table in the Rockchip develop-6.1 driver.
++ */
++static const struct phy_config rk3528_phy_cfg[] = {
++	{	165000000, {
++			0x02, 0x04, 0x0f, 0x0f, 0x00, 0x76, 0x83, 0x0a, 0x0a,
++			0x00,
++		},
++	}, {
++		185625000, {
++			0x02, 0x0b, 0x0f, 0x0f, 0x00, 0x76, 0x83, 0x0a, 0x33,
++			0x00,
++		},
++	}, {
++		340000000, {
++			0x03, 0x04, 0x0c, 0x12, 0x00, 0x76, 0x83, 0x00, 0x0f,
++			0x00,
++		},
++	}, {
++		371250000, {
++			0x02, 0x0b, 0x0d, 0x18, 0x00, 0x76, 0x83, 0x0a, 0x33,
++			0x00,
++		},
++	}, {
++		594000000, {
++			0x02, 0x0b, 0x0d, 0x18, 0x00, 0x76, 0x83, 0x0a, 0x33,
++			0x00,
++		},
++	}, {
++		~0UL, {
++			0x00, 0x00, 0x00, 0x00, 0x00,
++		},
++	}
++};
++
+ static inline struct inno_hdmi_phy *to_inno_hdmi_phy(struct clk_hw *hw)
+ {
+ 	return container_of(hw, struct inno_hdmi_phy, hw);
+@@ -633,19 +687,29 @@
+ 
+ 	dev_dbg(inno->dev, "Inno HDMI PHY Power On\n");
+ 
+-	inno->plat_data->clk_ops->set_rate(&inno->hw, inno->pixclock, 24000000);
++	ret = inno->plat_data->clk_ops->set_rate(&inno->hw, inno->pixclock,
++					      clk_get_rate(inno->refoclk));
++	if (ret)
++		goto err_power_off;
+ 
+ 	ret = clk_prepare_enable(inno->phyclk);
+ 	if (ret)
+-		return ret;
++		goto err_power_off;
+ 
+ 	ret = inno->plat_data->ops->power_on(inno, cfg, phy_cfg);
+ 	if (ret) {
++		if (inno->plat_data->ops->power_off)
++			inno->plat_data->ops->power_off(inno);
+ 		clk_disable_unprepare(inno->phyclk);
+ 		return ret;
+ 	}
+ 
+ 	return 0;
++
++err_power_off:
++	if (inno->plat_data->ops->power_off)
++		inno->plat_data->ops->power_off(inno);
++	return ret;
+ }
+ 
+ static int inno_hdmi_phy_power_off(struct phy *phy)
+@@ -995,6 +1059,44 @@
+ 	.set_rate = inno_hdmi_phy_rk3328_clk_set_rate,
+ };
+ 
++static void inno_hdmi_phy_rk3528_power_off(struct inno_hdmi_phy *inno);
++
++static int inno_hdmi_phy_rk3528_clk_set_rate(struct clk_hw *hw,
++					     unsigned long rate,
++					     unsigned long parent_rate)
++{
++	struct inno_hdmi_phy *inno = to_inno_hdmi_phy(hw);
++	int ret;
++
++	/*
++	 * The pre-PLL only locks with the bandgap and the rxsense detection
++	 * powered, which power_on() would otherwise do after the rate change.
++	 */
++	inno_update_bits(inno, 0xb0, RK3328_BANDGAP_ENABLE,
++			 RK3328_BANDGAP_ENABLE);
++	inno_write(inno, 0xcc, 0x0f);
++
++	/* A lost lock must not take the cached-rate shortcut. */
++	if (!(inno_read(inno, 0xa9) & RK3328_PRE_PLL_LOCK_STATUS))
++		inno->tmdsclock = 0;
++
++	ret = inno_hdmi_phy_rk3328_clk_set_rate(hw, rate, parent_rate);
++	if (ret)
++		inno_hdmi_phy_rk3528_power_off(inno);
++
++	return ret;
++}
++
++/* Same pre-PLL as RK3328, just a different power-up sequence */
++static const struct clk_ops inno_hdmi_phy_rk3528_clk_ops = {
++	.prepare = inno_hdmi_phy_rk3328_clk_prepare,
++	.unprepare = inno_hdmi_phy_rk3328_clk_unprepare,
++	.is_prepared = inno_hdmi_phy_rk3328_clk_is_prepared,
++	.recalc_rate = inno_hdmi_phy_rk3328_clk_recalc_rate,
++	.determine_rate = inno_hdmi_phy_rk3328_clk_determine_rate,
++	.set_rate = inno_hdmi_phy_rk3528_clk_set_rate,
++};
++
+ static int inno_hdmi_phy_clk_register(struct inno_hdmi_phy *inno)
+ {
+ 	struct device *dev = inno->dev;
+@@ -1276,6 +1378,136 @@
+ 	.power_off = inno_hdmi_phy_rk3328_power_off,
+ };
+ 
++static void inno_hdmi_phy_rk3528_power_off(struct inno_hdmi_phy *inno)
++{
++	/* Also invalidate direct clock-provider failures, outside phy_power_on(). */
++	inno->tmdsclock = 0;
++
++	/* Power off driver */
++	inno_write(inno, 0xb2, 0);
++	/* Power off serializer */
++	inno_write(inno, 0xbe, 0);
++	/* Power off post PLL */
++	inno_update_bits(inno, 0xaa, RK3328_POST_PLL_POWER_DOWN,
++			 RK3328_POST_PLL_POWER_DOWN);
++	/* Power off rxsense detection circuit */
++	inno_write(inno, 0xcc, 0);
++	/* Power off band gap */
++	inno_update_bits(inno, 0xb0, RK3328_BANDGAP_ENABLE, 0);
++	/* Disable PHY IRQ */
++	inno_write(inno, 0x05, 0);
++	inno_write(inno, 0x07, 0);
++}
++
++static int inno_hdmi_phy_rk3528_init(struct inno_hdmi_phy *inno)
++{
++	/*
++	 * Use phy internal register control
++	 * rxsense/poweron/pllpd/pdataen signal.
++	 */
++	inno_write(inno, 0x02, 0x81);
++
++	inno->chip_version = INNO_HDMI_PHY_VERSION_RK3528;
++
++	/* Start from a known state whatever the bootloader left behind */
++	inno_hdmi_phy_rk3528_power_off(inno);
++
++	return 0;
++}
++
++static int
++inno_hdmi_phy_rk3528_power_on(struct inno_hdmi_phy *inno,
++			      const struct post_pll_config *cfg,
++			      const struct phy_config *phy_cfg)
++{
++	u64 temp;
++	u32 v;
++	int ret;
++
++	/* Configure post PLL */
++	inno_write(inno, 0xab, cfg->prediv);
++	if (cfg->postdiv == 1) {
++		inno_write(inno, 0xad, 0x8);
++		inno_write(inno, 0xaa, 0x2);
++	} else {
++		inno_write(inno, 0xad, (cfg->postdiv / 2) - 1);
++		inno_write(inno, 0xaa, 0xe);
++	}
++	inno_write(inno, 0xac, cfg->fbdiv & 0xff);
++	inno_update_bits(inno, 0xad, BIT(4), (cfg->fbdiv >> 8) & BIT(0) ? BIT(4) : 0);
++
++	/* Current bias for clock and data lanes */
++	inno_write(inno, 0xbf, phy_cfg->regs[0] << 4 | phy_cfg->regs[1]);
++	inno_write(inno, 0xc0, phy_cfg->regs[1] << 4 | phy_cfg->regs[1]);
++
++	/* Output voltage */
++	inno_write(inno, 0xb5, phy_cfg->regs[2]);
++	inno_write(inno, 0xb6, phy_cfg->regs[3]);
++	inno_write(inno, 0xb7, phy_cfg->regs[3]);
++	inno_write(inno, 0xb8, phy_cfg->regs[3]);
++
++	/* Pre-emphasis */
++	inno_write(inno, 0xbb, phy_cfg->regs[4]);
++	inno_write(inno, 0xbc, phy_cfg->regs[4]);
++	inno_write(inno, 0xbd, phy_cfg->regs[4]);
++
++	/* Enable LDO */
++	inno_write(inno, 0xb4, 0x7);
++	/* Enable serializer */
++	inno_write(inno, 0xbe, 0x70);
++	/* Enable TMDS driver */
++	inno_write(inno, 0xb2, 0x0f);
++
++	/* Wait for post PLL lock */
++	ret = inno_poll(inno, 0xaf, v, v & RK3328_POST_PLL_LOCK_STATUS,
++			1000, 10000);
++	if (ret) {
++		dev_err(inno->dev, "Post-PLL locking failed\n");
++		return ret;
++	}
++
++	/* Termination resistance */
++	inno_write(inno, 0xc7, phy_cfg->regs[5]);
++	inno_write(inno, 0xc5, phy_cfg->regs[6]);
++	inno_write(inno, 0xc8, phy_cfg->regs[7]);
++	inno_write(inno, 0xc9, phy_cfg->regs[8]);
++	inno_write(inno, 0xca, phy_cfg->regs[8]);
++	inno_write(inno, 0xcb, phy_cfg->regs[8]);
++	inno_update_bits(inno, 0xb0, BIT(1), phy_cfg->regs[9] ? BIT(1) : 0);
++
++	/* TMDS sync detection counter length */
++	temp = 47520000000ULL;
++	do_div(temp, inno->tmdsclock);
++	inno_write(inno, 0xd8, (temp >> 8) & 0xff);
++	inno_write(inno, 0xd9, temp & 0xff);
++
++	/* Power up post PLL, band gap and TMDS driver */
++	inno_update_bits(inno, 0xaa, RK3328_POST_PLL_POWER_DOWN, 0);
++	inno_update_bits(inno, 0xb0, RK3328_BANDGAP_ENABLE,
++			 RK3328_BANDGAP_ENABLE);
++	inno_write(inno, 0xb2, 0x0f);
++
++	if (phy_cfg->tmdsclock > 340000000)
++		msleep(100);
++
++	/* Pulse pdata_en */
++	inno_update_bits(inno, 0x02, RK3328_PDATA_EN, 0);
++	inno_update_bits(inno, 0x02, RK3328_PDATA_EN, RK3328_PDATA_EN);
++
++	/* Enable PHY IRQ */
++	inno_write(inno, 0x05, 0x22);
++	inno_write(inno, 0x07, 0x22);
++	inno_write(inno, 0xcc, 0x0f);
++
++	return 0;
++}
++
++static const struct inno_hdmi_phy_ops rk3528_hdmi_phy_ops = {
++	.init = inno_hdmi_phy_rk3528_init,
++	.power_on = inno_hdmi_phy_rk3528_power_on,
++	.power_off = inno_hdmi_phy_rk3528_power_off,
++};
++
+ static const struct inno_hdmi_phy_drv_data rk3228_hdmi_phy_drv_data = {
+ 	.ops = &rk3228_hdmi_phy_ops,
+ 	.clk_ops = &inno_hdmi_phy_rk3228_clk_ops,
+@@ -1286,6 +1518,12 @@
+ 	.ops = &rk3328_hdmi_phy_ops,
+ 	.clk_ops = &inno_hdmi_phy_rk3328_clk_ops,
+ 	.phy_cfg_table = rk3328_phy_cfg,
++};
++
++static const struct inno_hdmi_phy_drv_data rk3528_hdmi_phy_drv_data = {
++	.ops = &rk3528_hdmi_phy_ops,
++	.clk_ops = &inno_hdmi_phy_rk3528_clk_ops,
++	.phy_cfg_table = rk3528_phy_cfg,
+ };
+ 
+ static const struct regmap_config inno_hdmi_phy_regmap_config = {
+@@ -1331,7 +1569,7 @@
+ 		return ret;
+ 	}
+ 
+-	inno->refpclk = devm_clk_get(inno->dev, "refpclk");
++	inno->refpclk = devm_clk_get_optional(inno->dev, "refpclk");
+ 	if (IS_ERR(inno->refpclk)) {
+ 		ret = PTR_ERR(inno->refpclk);
+ 		dev_err(inno->dev, "failed to get ref clock: %d\n", ret);
+@@ -1421,6 +1659,9 @@
+ 	}, {
+ 		.compatible = "rockchip,rk3328-hdmi-phy",
+ 		.data = &rk3328_hdmi_phy_drv_data
++	}, {
++		.compatible = "rockchip,rk3528-hdmi-phy",
++		.data = &rk3528_hdmi_phy_drv_data
+ 	}, { /* sentinel */ }
+ };
+ MODULE_DEVICE_TABLE(of, inno_hdmi_phy_of_match);
+
+--- a/drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c
++++ b/drivers/gpu/drm/rockchip/dw_hdmi-rockchip.c
+@@ -6,2 +6,4 @@
+ #include <linux/clk.h>
++#include <linux/gpio/consumer.h>
++#include <linux/interrupt.h>
+ #include <linux/hw_bitfield.h>
+@@ -51,6 +53,12 @@
+ #define RK3399_GRF_SOC_CON20		0x6250
+ #define RK3399_HDMI_LCDC_SEL		BIT(6)
+ 
++#define RK3528_VO_GRF_HDMI_MASK		0x0014
++#define RK3528_HDMI_SNKDET_SEL		BIT(6)
++#define RK3528_HDMI_SNKDET		BIT(5)
++#define RK3528_HDMI_SDAIN_MSK		BIT(1)
++#define RK3528_HDMI_SCLIN_MSK		BIT(0)
++
+ #define RK3568_GRF_VO_CON1		0x0364
+ #define RK3568_HDMI_SDAIN_MSK		BIT(15)
+ #define RK3568_HDMI_SCLIN_MSK		BIT(14)
+@@ -81,4 +89,5 @@
+ 	struct dw_hdmi *hdmi;
+ 	struct phy *phy;
++	struct gpio_desc *hpd_gpio;
+ };
+ 
+@@ -409,6 +418,79 @@
+ 	dw_hdmi_rk3328_read_hpd(dw_hdmi, data);
+ }
+ 
++/*
++ * The RK3528 HDMI controller does not sense hot-plug on its own pad. The
++ * level is read from a GPIO and mirrored into the VO GRF sink-detect bit,
++ * which the controller then sees as its regular HPD input.
++ */
++static void dw_hdmi_rk3528_set_snkdet(struct rockchip_hdmi *hdmi)
++{
++	int value = gpiod_get_value_cansleep(hdmi->hpd_gpio);
++
++	if (value < 0)
++		return;
++
++	regmap_write(hdmi->regmap, RK3528_VO_GRF_HDMI_MASK,
++		     FIELD_PREP_WM16(RK3528_HDMI_SNKDET, value ? 1 : 0));
++}
++
++static irqreturn_t dw_hdmi_rk3528_hpd_irq(int irq, void *data)
++{
++	dw_hdmi_rk3528_set_snkdet(data);
++
++	return IRQ_HANDLED;
++}
++
++static int dw_hdmi_rk3528_init_hpd(struct rockchip_hdmi *hdmi)
++{
++	struct device *dev = hdmi->dev;
++	int irq, ret;
++
++	/*
++	 * The input path of the HPD pad is only enabled while its GPIO output
++	 * data bit is set, so request it high first and then turn it around.
++	 */
++	hdmi->hpd_gpio = devm_gpiod_get_optional(dev, "hpd", GPIOD_OUT_HIGH);
++	if (IS_ERR(hdmi->hpd_gpio))
++		return dev_err_probe(dev, PTR_ERR(hdmi->hpd_gpio),
++				     "failed to get HPD GPIO\n");
++	if (!hdmi->hpd_gpio)
++		return 0;
++
++	ret = gpiod_direction_input(hdmi->hpd_gpio);
++	if (ret)
++		return ret;
++
++	irq = gpiod_to_irq(hdmi->hpd_gpio);
++	if (irq < 0)
++		return irq;
++
++	ret = devm_request_threaded_irq(dev, irq, NULL, dw_hdmi_rk3528_hpd_irq,
++					IRQF_TRIGGER_RISING |
++					IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
++					"hdmi-hpd", hdmi);
++	if (ret)
++		return dev_err_probe(dev, ret, "failed to request HPD irq\n");
++
++	return 0;
++}
++
++static void dw_hdmi_rk3528_setup_hpd(struct dw_hdmi *dw_hdmi, void *data)
++{
++	struct rockchip_hdmi *hdmi = data;
++
++	dw_hdmi_phy_setup_hpd(dw_hdmi, data);
++
++	regmap_write(hdmi->regmap, RK3528_VO_GRF_HDMI_MASK,
++		     FIELD_PREP_WM16(RK3528_HDMI_SNKDET_SEL,
++				     hdmi->hpd_gpio ? 1 : 0) |
++		     FIELD_PREP_WM16(RK3528_HDMI_SDAIN_MSK, 1) |
++		     FIELD_PREP_WM16(RK3528_HDMI_SCLIN_MSK, 1));
++
++	if (hdmi->hpd_gpio)
++		dw_hdmi_rk3528_set_snkdet(hdmi);
++}
++
+ static const struct dw_hdmi_phy_ops rk3228_hdmi_phy_ops = {
+ 	.init		= dw_hdmi_rockchip_genphy_init,
+ 	.disable	= dw_hdmi_rockchip_genphy_disable,
+@@ -462,6 +544,52 @@
+ 	.mode_valid = dw_hdmi_rockchip_mode_valid,
+ 	.phy_data = &rk3328_chip_data,
+ 	.phy_ops = &rk3328_hdmi_phy_ops,
++	.phy_name = "inno_dw_hdmi_phy2",
++	.phy_force_vendor = true,
++	.use_drm_infoframe = true,
++};
++
++static const struct dw_hdmi_phy_ops rk3528_hdmi_phy_ops = {
++	.init		= dw_hdmi_rockchip_genphy_init,
++	.disable	= dw_hdmi_rockchip_genphy_disable,
++	.read_hpd	= dw_hdmi_phy_read_hpd,
++	.update_hpd	= dw_hdmi_phy_update_hpd,
++	.setup_hpd	= dw_hdmi_rk3528_setup_hpd,
++};
++
++static struct rockchip_hdmi_chip_data rk3528_chip_data = {
++	.lcdsel_grf_reg = -1,
++	.max_tmds_clock = 594000,
++};
++
++static enum drm_mode_status
++dw_hdmi_rk3528_mode_valid(struct dw_hdmi *dw_hdmi, void *data,
++			 const struct drm_display_info *info,
++			 const struct drm_display_mode *mode)
++{
++	enum drm_mode_status status;
++
++	status = dw_hdmi_rockchip_mode_valid(dw_hdmi, data, info, mode);
++	if (status != MODE_OK)
++		return status;
++
++	/* This encoder currently transmits RGB888, so TMDS equals pixel rate. */
++	if (info->max_tmds_clock && mode->clock > info->max_tmds_clock)
++		return MODE_CLOCK_HIGH;
++
++	/* High TMDS rates require scrambling and a working SCDC link. */
++	if (mode->clock > 340000 &&
++	    (info->max_tmds_clock <= 340000 || !info->hdmi.scdc.supported ||
++	     !info->hdmi.scdc.scrambling.supported))
++		return MODE_CLOCK_HIGH;
++
++	return MODE_OK;
++}
++
++static const struct dw_hdmi_plat_data rk3528_hdmi_drv_data = {
++	.mode_valid = dw_hdmi_rk3528_mode_valid,
++	.phy_data = &rk3528_chip_data,
++	.phy_ops = &rk3528_hdmi_phy_ops,
+ 	.phy_name = "inno_dw_hdmi_phy2",
+ 	.phy_force_vendor = true,
+ 	.use_drm_infoframe = true,
+@@ -519,6 +647,9 @@
+ 	},
+ 	{ .compatible = "rockchip,rk3328-dw-hdmi",
+ 	  .data = &rk3328_hdmi_drv_data
++	},
++	{ .compatible = "rockchip,rk3528-dw-hdmi",
++	  .data = &rk3528_hdmi_drv_data
+ 	},
+ 	{ .compatible = "rockchip,rk3368-dw-hdmi",
+ 	 .data = &rk3368_hdmi_drv_data
+@@ -602,6 +733,12 @@
+ 		}
+ 	}
+ 
++	if (hdmi->chip_data == &rk3528_chip_data) {
++		ret = dw_hdmi_rk3528_init_hpd(hdmi);
++		if (ret)
++			return ret;
++	}
++
+ 	if (hdmi->chip_data == &rk3568_chip_data) {
+ 		regmap_write(hdmi->regmap, RK3568_GRF_VO_CON1,
+ 			     FIELD_PREP_WM16(RK3568_HDMI_SDAIN_MSK, 1) |
+
+--- a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h
++++ b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.h
+@@ -18,7 +18,7 @@
+ /* The VOP version of new SoC is bigger than the old */
+ #define VOP_VERSION_RK3568	VOP2_VERSION(0x40, 0x15, 0x8023)
+ #define VOP_VERSION_RK3588	VOP2_VERSION(0x40, 0x17, 0x6786)
+-#define VOP_VERSION_RK3528	VOP2_VERSION(0x50, 0x17, 0x1263)
++#define VOP_VERSION_RK3528	VOP2_VERSION(0x50, 0x17, 0x4334)
+ #define VOP_VERSION_RK3562	VOP2_VERSION(0x50, 0x17, 0x4350)
+ #define VOP_VERSION_RK3576	VOP2_VERSION(0x50, 0x19, 0x9765)
+ 
+@@ -238,6 +238,8 @@
+ 	struct vop2 *vop2;
+ 	struct clk *dclk;
+ 	struct clk *dclk_src;
++	/* This port owns a dclk reference and a share of the VOP resources. */
++	bool enabled;
+ 	unsigned int id;
+ 	const struct vop2_video_port_data *data;
+ 
+@@ -446,6 +448,11 @@
+ 
+ /* Extra OVL register definition */
+ #define RK3576_SYS_EXTRA_ALPHA_CTRL		0x500
++#define RK3528_OVL_SYS_PORT_SEL_IMD		0x504
++#define RK3528_OVL_SYS_CLUSTER0_CTRL		0x510
++#define RK3528_OVL_SYS_ESMART0_CTRL		0x520
++#define RK3528_LUT_PORT_SEL__ESMART_LB_MODE	GENMASK(27, 26)
++#define RK3528_ESMART_LB_MODE_4K_2K_2K		2
+ #define RK3576_CLUSTER0_MIX_SRC_COLOR_CTRL	0x530
+ #define RK3576_CLUSTER0_MIX_DST_COLOR_CTRL	0x534
+ #define RK3576_CLUSTER0_MIX_SRC_ALPHA_CTRL	0x538
+@@ -706,6 +713,7 @@
+ #define RK3568_DSP_IF_POL__MIPI_PIN_POL			GENMASK(19, 16)
+ #define RK3568_DSP_IF_POL__EDP_PIN_POL			GENMASK(15, 12)
+ #define RK3568_DSP_IF_POL__HDMI_PIN_POL			GENMASK(7, 4)
++#define RK3568_DSP_IF_POL__HDMI_DCLK_POL		BIT(7)
+ #define RK3568_DSP_IF_POL__RGB_LVDS_PIN_POL		GENMASK(3, 0)
+ 
+ /* RK3562 uses separate pin and clock polarity fields for these outputs. */
+@@ -773,6 +781,11 @@
+ 
+ #define POLFLAG_DCLK_INV	BIT(3)
+ 
++#define RK3528_OVL_SYS_PORT_SEL_IMD__ESMART0		GENMASK(17, 16)
++#define RK3528_OVL_SYS_PORT_SEL_IMD__CLUSTER0		GENMASK(1, 0)
++#define RK3528_OVL_SYS_CLUSTER0_CTRL__DLY_NUM		GENMASK(15, 0)
++#define RK3528_OVL_SYS_ESMART0_CTRL__DLY_NUM		GENMASK(7, 0)
++
+ #define RK3576_OVL_CTRL__YUV_MODE			BIT(0)
+ #define RK3576_OVL_BG_MIX_CTRL__BG_DLY			GENMASK(31, 24)
+ 
+
+--- a/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
++++ b/drivers/gpu/drm/rockchip/rockchip_drm_vop2.c
+@@ -788,7 +788,7 @@
+ 	vop2_writel(vop2, RK3588_SYS_PD_CTRL, pd);
+ }
+ 
+-static void vop2_enable(struct vop2 *vop2)
++static int vop2_enable(struct vop2 *vop2)
+ {
+ 	int ret;
+ 	u32 version;
+@@ -796,25 +796,24 @@
+ 	ret = pm_runtime_resume_and_get(vop2->dev);
+ 	if (ret < 0) {
+ 		drm_err(vop2->drm, "failed to get pm runtime: %d\n", ret);
+-		return;
++		return ret;
+ 	}
+ 
+ 	ret = vop2_core_clks_prepare_enable(vop2);
+-	if (ret) {
+-		pm_runtime_put_sync(vop2->dev);
+-		return;
+-	}
++	if (ret)
++		goto err_pm;
+ 
+ 	ret = rockchip_drm_dma_attach_device(vop2->drm, vop2->dev);
+ 	if (ret) {
+ 		drm_err(vop2->drm, "failed to attach dma mapping, %d\n", ret);
+-		return;
++		goto err_clks;
+ 	}
+ 
+ 	version = vop2_readl(vop2, RK3568_VERSION_INFO);
+ 	if (version != vop2->version) {
+ 		drm_err(vop2->drm, "Hardware version(0x%08x) mismatch\n", version);
+-		return;
++		ret = -ENODEV;
++		goto err_dma;
+ 	}
+ 
+ 	/*
+@@ -826,6 +825,16 @@
+ 
+ 	if (vop2->version == VOP_VERSION_RK3588)
+ 		rk3588_vop2_power_domain_enable_all(vop2);
++
++	/* Esmart0 must retain a 4K line buffer regardless of the bootloader. */
++	if (vop2->version == VOP_VERSION_RK3528) {
++		ret = regmap_update_bits(vop2->map, RK3568_LUT_PORT_SEL,
++					 RK3528_LUT_PORT_SEL__ESMART_LB_MODE,
++					 FIELD_PREP(RK3528_LUT_PORT_SEL__ESMART_LB_MODE,
++						    RK3528_ESMART_LB_MODE_4K_2K_2K));
++		if (ret)
++			goto err_dma;
++	}
+ 
+ 	if (vop2->version <= VOP_VERSION_RK3588) {
+ 		vop2->old_layer_sel = vop2_readl(vop2, RK3568_OVL_LAYER_SEL);
+@@ -849,19 +858,72 @@
+ 		    VOP2_INT_BUS_ERRPR << 16 | VOP2_INT_BUS_ERRPR);
+ 	vop2_writel(vop2, RK3568_SYS1_INT_EN,
+ 		    VOP2_INT_BUS_ERRPR << 16 | VOP2_INT_BUS_ERRPR);
+-}
+-
+-static void vop2_disable(struct vop2 *vop2)
+-{
++
++	return 0;
++
++err_dma:
+ 	rockchip_drm_dma_detach_device(vop2->drm, vop2->dev);
+-
+-	pm_runtime_put_sync(vop2->dev);
+-
+-	regcache_drop_region(vop2->map, 0, vop2_regmap_config.max_register);
+-
++err_clks:
+ 	clk_disable_unprepare(vop2->pclk);
+ 	clk_disable_unprepare(vop2->aclk);
+ 	clk_disable_unprepare(vop2->hclk);
++err_pm:
++	pm_runtime_put_sync(vop2->dev);
++	return ret;
++}
++
++static void vop2_disable(struct vop2 *vop2)
++{
++	rockchip_drm_dma_detach_device(vop2->drm, vop2->dev);
++
++	pm_runtime_put_sync(vop2->dev);
++
++	regcache_drop_region(vop2->map, 0, vop2_regmap_config.max_register);
++
++	clk_disable_unprepare(vop2->pclk);
++	clk_disable_unprepare(vop2->aclk);
++	clk_disable_unprepare(vop2->hclk);
++}
++
++static int vop2_vp_enable(struct vop2_video_port *vp)
++{
++	struct vop2 *vop2 = vp->vop2;
++	int ret;
++
++	if (vp->enabled)
++		return 0;
++
++	ret = clk_prepare_enable(vp->dclk);
++	if (ret)
++		return ret;
++
++	if (!vop2->enable_count) {
++		ret = vop2_enable(vop2);
++		if (ret) {
++			clk_disable_unprepare(vp->dclk);
++			return ret;
++		}
++	}
++
++	vop2->enable_count++;
++	vp->enabled = true;
++	return 0;
++}
++
++static void vop2_vp_disable(struct vop2_video_port *vp)
++{
++	struct vop2 *vop2 = vp->vop2;
++
++	if (!vp->enabled)
++		return;
++
++	if (vp->dclk_src)
++		clk_set_parent(vp->dclk, vp->dclk_src);
++	clk_disable_unprepare(vp->dclk);
++	vp->enabled = false;
++
++	if (!--vop2->enable_count)
++		vop2_disable(vop2);
+ }
+ 
+ static bool vop2_vp_dsp_lut_is_enabled(struct vop2_video_port *vp)
+@@ -935,10 +997,14 @@
+ 
+ 	vop2_lock(vop2);
+ 
++	if (!vp->enabled)
++		goto out_unlock;
++
+ 	old_crtc_state = drm_atomic_get_old_crtc_state(state, crtc);
+ 	drm_atomic_helper_disable_planes_on_crtc(old_crtc_state, false);
+ 
+ 	drm_crtc_vblank_off(crtc);
++	vop2_crtc_disable_irq(vp, VP_INT_POST_BUF_EMPTY);
+ 
+ 	/*
+ 	 * Vop standby will take effect at end of current frame,
+@@ -960,16 +1026,9 @@
+ 
+ 	vop2_crtc_disable_irq(vp, VP_INT_DSP_HOLD_VALID);
+ 
+-	if (vp->dclk_src)
+-		clk_set_parent(vp->dclk, vp->dclk_src);
+-
+-	clk_disable_unprepare(vp->dclk);
+-
+-	vop2->enable_count--;
+-
+-	if (!vop2->enable_count)
+-		vop2_disable(vop2);
+-
++	vop2_vp_disable(vp);
++
++out_unlock:
+ 	vop2_unlock(vop2);
+ 
+ 	if (crtc->state->event && !crtc->state->active) {
+@@ -1099,6 +1158,9 @@
+ 	struct drm_plane_state *old_pstate = NULL;
+ 	struct vop2_win *win = to_vop2_win(plane);
+ 	struct vop2 *vop2 = win->vop2;
++
++	if (!vop2->enable_count)
++		return;
+ 
+ 	drm_dbg(vop2->drm, "%s disable\n", win->data->name);
+ 
+@@ -1200,6 +1262,9 @@
+ 	if (WARN_ON(!crtc))
+ 		return;
+ 
++	if (!vp->enabled)
++		return;
++
+ 	if (!pstate->visible) {
+ 		vop2_plane_atomic_disable(plane, state);
+ 		return;
+@@ -1658,18 +1723,13 @@
+ 
+ 	vop2_lock(vop2);
+ 
+-	ret = clk_prepare_enable(vp->dclk);
++	ret = vop2_vp_enable(vp);
+ 	if (ret < 0) {
+-		drm_err(vop2->drm, "failed to enable dclk for video port%d - %d\n",
++		drm_err(vop2->drm, "failed to enable video port%d: %d\n",
+ 			vp->id, ret);
+ 		vop2_unlock(vop2);
+ 		return;
+ 	}
+-
+-	if (!vop2->enable_count)
+-		vop2_enable(vop2);
+-
+-	vop2->enable_count++;
+ 
+ 	vcstate->yuv_overlay = is_yuv_output(vcstate->bus_format);
+ 
+@@ -1694,10 +1754,8 @@
+ 		clock = vop2->ops->setup_intf_mux(vp, rkencoder->crtc_endpoint_id, polflags);
+ 	}
+ 
+-	if (!clock) {
+-		vop2_unlock(vop2);
+-		return;
+-	}
++	if (!clock)
++		goto err_standby;
+ 
+ 	if (vcstate->output_mode == ROCKCHIP_OUT_MODE_AAAA &&
+ 	    !(vp_data->feature & VOP2_VP_FEATURE_OUTPUT_10BIT))
+@@ -1802,3 +1860,8 @@
+ 
+-	clk_set_rate(vp->dclk, clock);
++	ret = clk_set_rate(vp->dclk, clock);
++	if (ret) {
++		drm_err(vop2->drm, "failed to set dclk for video port%d: %d\n",
++			vp->id, ret);
++		goto err_standby;
++	}
+ 
+@@ -1812,6 +1875,17 @@
+ 
+ 	drm_crtc_vblank_on(crtc);
+ 
++	vop2_unlock(vop2);
++	return;
++
++err_standby:
++	vop2_crtc_disable_irq(vp, VP_INT_POST_BUF_EMPTY);
++	vop2_vp_write(vp, RK3568_VP_DSP_CTRL, RK3568_VP_DSP_CTRL__STANDBY);
++	vop2_cfg_done(vp);
++	/*
++	 * atomic_enable cannot report failure to the DRM state. Keep resources
++	 * until atomic_disable so later plane updates still have register access.
++	 */
+ 	vop2_unlock(vop2);
+ }
+ 
+@@ -1870,7 +1944,25 @@
+ 	struct vop2_video_port *vp = to_vop2_video_port(crtc);
+ 	struct vop2 *vop2 = vp->vop2;
+ 
++	if (!vp->enabled)
++		return;
++
+ 	vop2->ops->setup_overlay(vp);
++}
++
++static void vop2_crtc_queue_event(struct drm_crtc *crtc)
++{
++	struct vop2_video_port *vp = to_vop2_video_port(crtc);
++
++	spin_lock_irq(&crtc->dev->event_lock);
++	if (crtc->state->event) {
++		if (!vp->enabled || drm_crtc_vblank_get(crtc))
++			drm_crtc_send_vblank_event(crtc, crtc->state->event);
++		else
++			vp->event = crtc->state->event;
++		crtc->state->event = NULL;
++	}
++	spin_unlock_irq(&crtc->dev->event_lock);
+ }
+ 
+ static void vop2_crtc_atomic_flush(struct drm_crtc *crtc,
+@@ -1880,6 +1972,11 @@
+ 	struct vop2_video_port *vp = to_vop2_video_port(crtc);
+ 	struct vop2 *vop2 = vp->vop2;
+ 
++	if (!vp->enabled) {
++		vop2_crtc_queue_event(crtc);
++		return;
++	}
++
+ 	/* In case of modeset, gamma lut update already happened in atomic enable */
+ 	if (!drm_atomic_crtc_needs_modeset(crtc_state) && crtc_state->color_mgmt_changed)
+ 		vop2_crtc_atomic_try_set_gamma_locked(vop2, vp, crtc, crtc_state);
+@@ -1888,15 +1985,7 @@
+ 
+ 	vop2_cfg_done(vp);
+ 
+-	spin_lock_irq(&crtc->dev->event_lock);
+-
+-	if (crtc->state->event) {
+-		WARN_ON(drm_crtc_vblank_get(crtc));
+-		vp->event = crtc->state->event;
+-		crtc->state->event = NULL;
+-	}
+-
+-	spin_unlock_irq(&crtc->dev->event_lock);
++	vop2_crtc_queue_event(crtc);
+ }
+ 
+ static const struct drm_crtc_helper_funcs vop2_crtc_helper_funcs = {
+
+--- a/drivers/gpu/drm/rockchip/rockchip_vop2_reg.c
++++ b/drivers/gpu/drm/rockchip/rockchip_vop2_reg.c
+@@ -2504,6 +2504,150 @@
+ 	.soc_id = 3562,
+ };
+ 
++static unsigned long rk3528_set_intf_mux(struct vop2_video_port *vp, int id, u32 polflags)
++{
++	struct vop2 *vop2 = vp->vop2;
++	unsigned long clock;
++	u32 dip;
++
++	clock = rk3568_set_intf_mux(vp, id, polflags);
++	if (!clock)
++		return 0;
++
++	/* The HDMI controller samples the pixel data on the inverted dclk */
++	if (id == ROCKCHIP_VOP2_EP_HDMI0) {
++		dip = vop2_readl(vop2, RK3568_DSP_IF_POL);
++		dip |= RK3568_DSP_IF_POL__HDMI_DCLK_POL;
++		vop2_writel(vop2, RK3568_DSP_IF_POL, dip);
++	}
++
++	return clock;
++}
++
++/*
++ * The overlay of the RK3528 is laid out like the RK3576 one, but the
++ * port assignment and the delay of the windows live in the OVL_SYS block
++ * instead of the window registers.
++ */
++static void rk3528_vop2_setup_overlay(struct vop2_video_port *vp)
++{
++	struct vop2 *vop2 = vp->vop2;
++	struct drm_crtc *crtc = &vp->crtc;
++	struct drm_plane *plane;
++	u32 port_sel;
++
++	vp->win_mask = 0;
++	port_sel = vop2_readl(vop2, RK3528_OVL_SYS_PORT_SEL_IMD);
++
++	drm_atomic_crtc_for_each_plane(plane, crtc) {
++		struct vop2_win *win = to_vop2_win(plane);
++
++		vp->win_mask |= BIT(win->data->phys_id);
++
++		if (vop2_cluster_window(win))
++			vop2_setup_cluster_alpha(vop2, win);
++
++		switch (win->data->phys_id) {
++		case ROCKCHIP_VOP2_CLUSTER0:
++			port_sel &= ~RK3528_OVL_SYS_PORT_SEL_IMD__CLUSTER0;
++			port_sel |= FIELD_PREP(RK3528_OVL_SYS_PORT_SEL_IMD__CLUSTER0, vp->id);
++			vop2_writel(vop2, RK3528_OVL_SYS_CLUSTER0_CTRL, 0);
++			break;
++		case ROCKCHIP_VOP2_ESMART0:
++			port_sel &= ~RK3528_OVL_SYS_PORT_SEL_IMD__ESMART0;
++			port_sel |= FIELD_PREP(RK3528_OVL_SYS_PORT_SEL_IMD__ESMART0, vp->id);
++			vop2_writel(vop2, RK3528_OVL_SYS_ESMART0_CTRL, 0);
++			break;
++		}
++	}
++
++	if (!vp->win_mask)
++		return;
++
++	vop2_writel(vop2, RK3528_OVL_SYS_PORT_SEL_IMD, port_sel);
++	rk3576_vop2_setup_layer_mixer(vp);
++	vop2_setup_alpha(vp);
++}
++
++static const struct vop2_ops rk3528_vop_ops = {
++	.setup_intf_mux = rk3528_set_intf_mux,
++	.setup_bg_dly = rk3576_vop2_setup_bg_dly,
++	.setup_overlay = rk3528_vop2_setup_overlay,
++};
++
++static const struct vop2_video_port_data rk3528_vop_video_ports[] = {
++	{
++		.id = 0,
++		.feature = VOP2_VP_FEATURE_OUTPUT_10BIT,
++		.max_output = { 4096, 4096 },
++		/* win layer_mix hdr */
++		.pre_scan_max_dly = { 8, 6, 2, 0 },
++		.offset = 0xc00,
++		.pixel_rate = 1,
++	},
++};
++
++/*
++ * rk3528 vop with 1 cluster and 4 esmart win, VP0 drives HDMI and VP1 the
++ * CVBS encoder. Only VP0 with Esmart0 and Cluster0 is described for now.
++ *
++ * AXI config::
++ *
++ * * Cluster0 win0: 0x2, 0x3
++ * * Cluster0 win1: 0x4, 0x5
++ * * Esmart0:       0x6, 0x7
++ */
++static const struct vop2_win_data rk3528_vop_win_data[] = {
++	{
++		.name = "Esmart0-win0",
++		.phys_id = ROCKCHIP_VOP2_ESMART0,
++		.base = 0x1800,
++		.possible_vp_mask = BIT(0),
++		.formats = formats_rk356x_esmart,
++		.nformats = ARRAY_SIZE(formats_rk356x_esmart),
++		.format_modifiers = format_modifiers,
++		.layer_sel_id = { 1, 0xf, 0xf, 0xf },
++		.supported_rotations = DRM_MODE_REFLECT_Y,
++		.type = DRM_PLANE_TYPE_PRIMARY,
++		.axi_yrgb_r_id = 6,
++		.axi_uv_r_id = 7,
++		.max_upscale_factor = 8,
++		.max_downscale_factor = 8,
++	}, {
++		.name = "Cluster0-win0",
++		.phys_id = ROCKCHIP_VOP2_CLUSTER0,
++		.base = 0x1000,
++		.possible_vp_mask = BIT(0),
++		.formats = formats_cluster,
++		.nformats = ARRAY_SIZE(formats_cluster),
++		.format_modifiers = format_modifiers,
++		.layer_sel_id = { 0, 0xf, 0xf, 0xf },
++		.supported_rotations = DRM_MODE_REFLECT_X | DRM_MODE_REFLECT_Y,
++		.type = DRM_PLANE_TYPE_OVERLAY,
++		.axi_yrgb_r_id = 2,
++		.axi_uv_r_id = 3,
++		.max_upscale_factor = 4,
++		.max_downscale_factor = 4,
++		.feature = WIN_FEATURE_CLUSTER,
++	},
++};
++
++static const struct vop2_data rk3528_vop = {
++	.version = VOP_VERSION_RK3528,
++	.nr_vps = 1,
++	.max_input = { 4096, 4096 },
++	.max_output = { 4096, 4096 },
++	.vp = rk3528_vop_video_ports,
++	.win = rk3528_vop_win_data,
++	.win_size = ARRAY_SIZE(rk3528_vop_win_data),
++	.cluster_reg = rk3576_vop_cluster_regs,
++	.nr_cluster_regs = ARRAY_SIZE(rk3576_vop_cluster_regs),
++	.smart_reg = rk3568_vop_smart_regs,
++	.nr_smart_regs = ARRAY_SIZE(rk3568_vop_smart_regs),
++	.ops = &rk3528_vop_ops,
++	.soc_id = 3528,
++};
++
+ static const struct vop2_data rk3566_vop = {
+ 	.version = VOP_VERSION_RK3568,
+ 	.feature = VOP2_FEATURE_HAS_SYS_GRF,
+@@ -2583,6 +2727,9 @@
+ 
+ static const struct of_device_id vop2_dt_match[] = {
+ 	{
++		.compatible = "rockchip,rk3528-vop",
++		.data = &rk3528_vop,
++	}, {
+ 		.compatible = "rockchip,rk3562-vop",
+ 		.data = &rk3562_vop,
+ 	}, {

@@ -1,0 +1,32 @@
+arch/arm64/boot/dts/rockchip/rk3528-x88pro.dts:368.5-15: Warning (reg_format): /soc/mmc@ffc10000/wireless-wlan:reg: property has invalid length (4 bytes) (#address-cells == 2, #size-cells == 1)
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dts:381.3-13: Warning (reg_format): /soc/mmc@ffc10000/seekwcn-boot:reg: property has invalid length (4 bytes) (#address-cells == 2, #size-cells == 1)
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:100.4-21: Warning (reg_format): /dmc-opp-table/log-leakage@1b:reg: property has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:103.4-21: Warning (reg_format): /dmc-opp-table/dmc-opp-info@3e:reg: property has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:106.4-21: Warning (reg_format): /dmc-opp-table/logic-mbist-vmin@9:reg: property has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:635.4-21: Warning (reg_format): /tve@ff880000/vdac-out-current@30:reg: property has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:638.4-21: Warning (reg_format): /tve@ff880000/test-version@29:reg: property has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:641.4-21: Warning (reg_format): /tve@ff880000/cpu-tsadc-trim-l@44:reg: property has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:644.4-21: Warning (reg_format): /tve@ff880000/cpu-tsadc-trim-h@45:reg: property has invalid length (8 bytes) (#address-cells == 2, #size-cells == 1)
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtb: Warning (pci_device_reg): Failed prerequisite 'reg_format'
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtb: Warning (pci_device_bus_num): Failed prerequisite 'reg_format'
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtb: Warning (i2c_bus_reg): Failed prerequisite 'reg_format'
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtb: Warning (spi_bus_reg): Failed prerequisite 'reg_format'
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dts:365.31-377.4: Warning (avoid_default_addr_size): /soc/mmc@ffc10000/wireless-wlan: Relying on default #address-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dts:365.31-377.4: Warning (avoid_default_addr_size): /soc/mmc@ffc10000/wireless-wlan: Relying on default #size-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dts:379.29-400.4: Warning (avoid_default_addr_size): /soc/mmc@ffc10000/seekwcn-boot: Relying on default #address-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dts:379.29-400.4: Warning (avoid_default_addr_size): /soc/mmc@ffc10000/seekwcn-boot: Relying on default #size-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:99.31-101.5: Warning (avoid_default_addr_size): /dmc-opp-table/log-leakage@1b: Relying on default #address-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:99.31-101.5: Warning (avoid_default_addr_size): /dmc-opp-table/log-leakage@1b: Relying on default #size-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:102.33-104.5: Warning (avoid_default_addr_size): /dmc-opp-table/dmc-opp-info@3e: Relying on default #address-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:102.33-104.5: Warning (avoid_default_addr_size): /dmc-opp-table/dmc-opp-info@3e: Relying on default #size-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:105.40-108.5: Warning (avoid_default_addr_size): /dmc-opp-table/logic-mbist-vmin@9: Relying on default #address-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:105.40-108.5: Warning (avoid_default_addr_size): /dmc-opp-table/logic-mbist-vmin@9: Relying on default #size-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:634.41-636.5: Warning (avoid_default_addr_size): /tve@ff880000/vdac-out-current@30: Relying on default #address-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:634.41-636.5: Warning (avoid_default_addr_size): /tve@ff880000/vdac-out-current@30: Relying on default #size-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:637.33-639.5: Warning (avoid_default_addr_size): /tve@ff880000/test-version@29: Relying on default #address-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:637.33-639.5: Warning (avoid_default_addr_size): /tve@ff880000/test-version@29: Relying on default #size-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:640.41-642.5: Warning (avoid_default_addr_size): /tve@ff880000/cpu-tsadc-trim-l@44: Relying on default #address-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:640.41-642.5: Warning (avoid_default_addr_size): /tve@ff880000/cpu-tsadc-trim-l@44: Relying on default #size-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:643.41-645.5: Warning (avoid_default_addr_size): /tve@ff880000/cpu-tsadc-trim-h@45: Relying on default #address-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dtsi:643.41-645.5: Warning (avoid_default_addr_size): /tve@ff880000/cpu-tsadc-trim-h@45: Relying on default #size-cells value
+   arch/arm64/boot/dts/rockchip/rk3528-x88pro.dts:198.27-209.4: Warning (clocks_property): /sdio-pwrseq: Missing property '#clock-cells' in node /pinctrl/clk/clkm1-32k-out or bad phandle (referred from clocks[0])
