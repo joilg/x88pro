@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: GPL-2.0
+
+ifeq ($(strip $(CONFIG_CPU_RK3528)), y)
+	CONFIG_CLK_RK3528 ?= y
+endif
+
+dtb-$(CONFIG_CLK_RK3528) += \
+	rk3528-wifi-skw.dtb0 \
+	rk3528-dwc3-host.dtbo \
+	rk3528-dwc3-otg.dtbo \
+	rk3528-dwc3-peripheral.dtbo \
+	rk3528-enable-tve.dtbo \
+	rk3528-fiq-debugger-uart1m0.dtbo \
+	rk3528-fiq-debugger-uart2m1.dtbo \
+	rk3528-fiq-debugger-uart3m0.dtbo \
+	rk3528-fiq-debugger-uart3m1.dtbo \
+	rk3528-fiq-debugger-uart7m0.dtbo \
+	rk3528-i2c0-m1.dtbo \
+	rk3528-i2c1-m0.dtbo \
+	rk3528-i2s1-2ch.dtbo \
+	rk3528-pwm0-m0.dtbo \
+	rk3528-pwm3-m0.dtbo \
+	rk3528-pwm4-m0.dtbo \
+	rk3528-pwm4-m1.dtbo \
+	rk3528-pwm5-m0.dtbo \
+	rk3528-pwm6-m0.dtbo \
+	rk3528-spi0-cs1-enc28j60.dtbo \
+	rk3528-spi0-cs1-mcp2515.dtbo \
+	rk3528-spi0-cs1-spidev.dtbo \
+	rk3528-spi1-cs0-spidev.dtbo \
+	rk3528-uart0-m0.dtbo \
+	rk3528-uart1-m0.dtbo \
+	rk3528-uart2-m1.dtbo \
+	rk3528-uart3-m0.dtbo \
+	rk3528-uart3-m1.dtbo \
+	rk3528-uart7-m0.dtbo \
+	radxa-e24c-spiflash.dtbo \
+	rock-2a-eeprom.dtbo \
+	rock-2a-enable-pcie.dtbo \
+	rock-2a-poe-hat.dtbo
+
+dtb-$(CONFIG_ARCH_ROCKCHIP) += \
+	rockchip-gpu-disable.dtbo \
+	rockchip-watchdog.dtbo \
+	rockchip-uart-dma.dtbo
+
+dtbotxt-$(CONFIG_ARCH_ROCKCHIP) += \
+	README.overlays
+
+targets += $(dtb-y) $(dtbotxt-y)
+
+always-y		:= $(dtb-y) $(dtbotxt-y)
+clean-files		:= *.dtbo *.scr

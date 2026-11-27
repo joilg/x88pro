@@ -1,0 +1,23 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "rockchip,rk3528";
+
+	fragment@0 {
+		target = <&openvfd>;
+		__overlay__ {
+			openvfd {
+				compatible = "open,vfd";
+				dev_name = "openvfd";
+				openvfd_gpio_clk = <&gpio4 RK_PA4 GPIO_ACTIVE_HIGH>;
+				openvfd_gpio_stb = <&gpio4 RK_PA5 GPIO_ACTIVE_HIGH>;
+				openvfd_gpio_dat = <&gpio4 RK_PA6 GPIO_ACTIVE_HIGH>;
+				openvfd_chars = [04 00 01 02 03];
+				openvfd_dot_bits = [00 01 02 03 04 05 06];
+				openvfd_display_type = <0x03 0x00 0x00 0x00>;
+				status = "okay";
+			};
+		};
+	};
+}

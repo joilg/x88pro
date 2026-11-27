@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: John Doe <john.doe@somewhere.on.planet>
+Date: Thu, 12 Nov 2026 11:16:49 +0000
+Subject: Patching kernel rk35xx files arch/arm64/boot/dts/rockchip/Makefile
+
+Signed-off-by: John Doe <john.doe@somewhere.on.planet>
+---
+ arch/arm64/boot/dts/rockchip/Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/boot/dts/rockchip/Makefile b/arch/arm64/boot/dts/rockchip/Makefile
+index 997c4ab6af16..d73a3cfd44fd 100644
+--- a/arch/arm64/boot/dts/rockchip/Makefile
++++ b/arch/arm64/boot/dts/rockchip/Makefile
+@@ -484,10 +484,11 @@ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-nanopi-rev03.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-radxa-e20c.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-radxa-e24c-spi.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-radxa-e24c.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-rock-2a.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-rock-2f.dtb
++dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3528-x88pro.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3566-box-X88PRO-npu.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3566-eltay-rm66.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3566-eltay-rm66-bb-cm4.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3566-h96max-v56.dtb
+ dtb-$(CONFIG_ARCH_ROCKCHIP) += rk3566-lckfb-tspi.dtb
+-- 
+Created with Armbian build tools https://github.com/armbian/build
+

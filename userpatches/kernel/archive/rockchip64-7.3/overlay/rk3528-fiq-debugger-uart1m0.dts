@@ -1,0 +1,27 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	metadata {
+		title = "Enable FIQ Debugger on UART1-M0";
+		compatible = "radxa,medge-rk3528a-io";
+		category = "misc";
+		exclusive = "GPIO4_A7", "GPIO4_A6";
+		description = "Enable FIQ Debugger on UART1-M0.
+On Radxa mEdge-RK3528A IO this is TX pin 7 & RX pin 32.		
+";
+	};
+};
+
+&{/} {
+	fiq-debugger {
+		status = "okay";
+		rockchip,serial-id = <1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart1m0_xfer>;
+	};
+};
+
+&uart1 {
+	status = "disabled";
+};

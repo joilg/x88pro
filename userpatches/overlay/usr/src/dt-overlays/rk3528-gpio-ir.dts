@@ -1,0 +1,32 @@
+/dts-v1/;
+/plugin/;
+
+/* enable IR-Remotecontrol with GPIO 
+ * 	install:  cd /usr/src/dt-overlays/  &&  sudo armbian-add-overlay rk3528-gpio-ir.dts 
+  *				sudo reboot  
+  * test:      find /proc/device-tree/ir-receiver/ 
+ */
+
+//#include <dt-bindings/gpio/gpio.h>
+//#include <dt-bindings/pinctrl/rockchip.h>
+
+&{/} {
+	compatible = "rockchip,rk3528";
+
+    ir-receiver {
+		compatible = "gpio-ir-recv";
+		// gpios = <&gpio4 RK_PB6 GPIO_ACTIVE_HIGH>; 
+		gpios = <&gpio4 14 1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&pwm3_m0_ir_rx>;
+		linux,rc-map-name = "rc-rc6-mce";
+		status = "okay";
+	};
+};	
+	
+
+&pwm3 {
+	status = "disable";
+
+};
+

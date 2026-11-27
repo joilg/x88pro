@@ -1,0 +1,18 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+	metadata {
+		title = "Enable UART7-M0";
+		compatible = "unknown";
+		category = "misc";
+		exclusive = "GPIO3_B3", "GPIO3_B2";
+		description = "Enable UART7-M0.";
+	};
+};
+
+&uart7 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart7m0_xfer>;
+};

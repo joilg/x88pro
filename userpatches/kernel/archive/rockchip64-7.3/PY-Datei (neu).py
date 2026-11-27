@@ -1,0 +1,617 @@
+ @@ -0,0 +1,608 @@
+	// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+	/dts-v1/;
+	
+	#include "rk3528-h96max-soc.dtsi"
+	#include <dt-bindings/gpio/gpio.h>
+	#include <dt-bindings/leds/common.h>
+	
+	/ {
+		model = "H96 Max RK3528";
+		compatible = "h96,h96max-rk3528", "rockchip,rk3528";
+	
+		aliases {
+			ethernet0 = &gmac0;
+			mmc0 = &sdmmc;
+			serial0 = &uart0;
+		};
+	
+		chosen {
+			stdout-path = "serial0:1500000n8";
+		};
+	
+		analog-sound {
+			compatible = "simple-audio-card";
+			simple-audio-card,name = "H96 Max Analog";
+			simple-audio-card,format = "i2s";
+			simple-audio-card,mclk-fs = <256>;
+			simple-audio-card,bitclock-master = <&analog_sound_cpu>;
+			simple-audio-card,frame-master = <&analog_sound_cpu>;
+	
+			analog_sound_cpu: simple-audio-card,cpu {
+				sound-dai = <&sai2>;
+			};
+	
+			simple-audio-card,codec {
+				sound-dai = <&acodec>;
+			};
+		};
+	
+		hdmi-sound {
+			compatible = "simple-audio-card";
+			simple-audio-card,name = "H96 Max HDMI";
+			simple-audio-card,format = "i2s";
+			simple-audio-card,mclk-fs = <256>;
+			simple-audio-card,bitclock-master = <&hdmi_sound_cpu>;
+			simple-audio-card,frame-master = <&hdmi_sound_cpu>;
+	
+			hdmi_sound_cpu: simple-audio-card,cpu {
+				sound-dai = <&sai3>;
+				dai-tdm-slot-num = <2>;
+				dai-tdm-slot-width = <32>;
+			};
+	
+			simple-audio-card,codec {
+				sound-dai = <&hdmi>;
+			};
+		};
+	
+		spdif_out: spdif-out {
+			compatible = "linux,spdif-dit";
+			#sound-dai-cells = <0>;
+		};
+	
+		spdif-sound {
+			compatible = "simple-audio-card";
+			simple-audio-card,name = "H96 Max SPDIF";
+			simple-audio-card,mclk-fs = <128>;
+	
+			simple-audio-card,cpu {
+				sound-dai = <&spdif>;
+			};
+	
+			simple-audio-card,codec {
+				sound-dai = <&spdif_out>;
+			};
+		};
+	
+		dc_12v: regulator-dc-12v {
+			compatible = "regulator-fixed";
+			regulator-name = "dc_12v";
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-min-microvolt = <12000000>;
+			regulator-max-microvolt = <12000000>;
+		};
+	
+		vcc5v0_sys: regulator-vcc5v0-sys {
+			compatible = "regulator-fixed";
+			regulator-name = "vcc5v0_sys";
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			vin-supply = <&dc_12v>;
+		};
+	
+		vdd_0v9_s3: regulator-vdd-0v9-s3 {
+			compatible = "regulator-fixed";
+			regulator-name = "vdd_0v9_s3";
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-min-microvolt = <900000>;
+			regulator-max-microvolt = <900000>;
+			vin-supply = <&vcc5v0_sys>;
+		};
+	
+		vdd_1v8_s3: regulator-vdd-1v8-s3 {
+			compatible = "regulator-fixed";
+			regulator-name = "vdd_1v8_s3";
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			vin-supply = <&vcc5v0_sys>;
+		};
+	
+		vcc_3v3_s3: regulator-vcc-3v3-s3 {
+			compatible = "regulator-fixed";
+			regulator-name = "vcc_3v3_s3";
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			vin-supply = <&vcc5v0_sys>;
+		};
+	
+		vcc_ddr_s3: regulator-vcc-ddr-s3 {
+			compatible = "regulator-fixed";
+			regulator-name = "vcc_ddr_s3";
+			regulator-always-on;
+			regulator-boot-on;
+			regulator-min-microvolt = <1200000>;
+			regulator-max-microvolt = <1200000>;
+			vin-supply = <&vcc5v0_sys>;
+		};
+	
+		/*
+		 * H96 PWM regulators.
+		 *
+		 * Keep regulator-init-microvolt absent during initial bring-up.
+		 * The inverse duty-cycle mapping is required by the mainline
+		 * Rockchip PWM implementation.
+		 */
+		vdd_cpu: regulator-vdd-cpu {
+			compatible = "pwm-regulator";
+			pwms = <&pwm7 0 5000 1>;
+			pwm-dutycycle-range = <100 0>;
+			regulator-name = "vdd_cpu";
+			regulator-min-microvolt = <746000>;
+			regulator-max-microvolt = <1201000>;
+			regulator-settling-time-up-us = <250>;
+			regulator-always-on;
+			regulator-boot-on;
+		};
+	
+		vdd_logic: regulator-vdd-logic {
+			compatible = "pwm-regulator";
+			pwms = <&pwm2 0 5000 1>;
+			pwm-dutycycle-range = <100 0>;
+			regulator-name = "vdd_logic";
+			regulator-min-microvolt = <705000>;
+			regulator-max-microvolt = <1006000>;
+			regulator-settling-time-up-us = <250>;
+			regulator-always-on;
+			regulator-boot-on;
+		};
+	
+		vdd_gpu: regulator-vdd-gpu {
+			compatible = "pwm-regulator";
+			pwms = <&pwm4 0 5000 1>;
+			pwm-dutycycle-range = <100 0>;
+			regulator-name = "vdd_gpu";
+			regulator-min-microvolt = <705000>;
+			regulator-max-microvolt = <1148000>;
+			regulator-settling-time-up-us = <250>;
+			regulator-always-on;
+			regulator-boot-on;
+		};
+	
+		vccio_sd: regulator-vccio-sd {
+			compatible = "regulator-gpio";
+			regulator-name = "vccio_sd";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <3300000>;
+			gpios = <&gpio4 RK_PB6 GPIO_ACTIVE_HIGH>;
+			vin-supply = <&vcc5v0_sys>;
+			states = <1800000 0x0
+				  3300000 0x1>;
+		};
+	
+		vcc_sd: regulator-vcc-sd {
+			compatible = "regulator-fixed";
+			gpio = <&gpio4 RK_PA1 GPIO_ACTIVE_LOW>;
+			regulator-name = "vcc_sd";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			vin-supply = <&vcc_3v3_s3>;
+		};
+	
+		display_subsystem: display-subsystem {
+			compatible = "rockchip,display-subsystem";
+			ports = <&vop_out>;
+		};
+	};
+	
+	/* H96 CPU rail is PWM7, not the HT2 PWM1 assignment. */
+	&cpu0 {
+		cpu-supply = <&vdd_cpu>;
+	};
+	
+	&cpu1 {
+		cpu-supply = <&vdd_cpu>;
+	};
+	
+	&cpu2 {
+		cpu-supply = <&vdd_cpu>;
+	};
+	
+	&cpu3 {
+		cpu-supply = <&vdd_cpu>;
+	};
+	
+	/* H96 Ethernet uses the integrated RMII MAC/PHY path. */
+	&gmac0 {
+		status = "okay";
+	};
+	
+	&gmac1 {
+		status = "disabled";
+	};
+	
+	/*
+	 * Internal eMMC, enabled for read-only dumps. Plain high-speed mode only:
+	 * the 1.8 V I/O rail is not described, so HS200/HS400 stay off.
+	 */
+	&sdhci {
+		bus-width = <8>;
+		cap-mmc-highspeed;
+		max-frequency = <52000000>;
+		no-sd;
+		no-sdio;
+		non-removable;
+		status = "okay";
+	};
+	
+	&sdmmc {
+		bus-width = <4>;
+		cap-mmc-highspeed;
+		cap-sd-highspeed;
+		disable-wp;
+		max-frequency = <150000000>;
+		vqmmc-supply = <&vccio_sd>;
+		vmmc-supply = <&vcc_sd>;
+	
+		sd-uhs-sdr104;
+		sd-uhs-sdr50;
+		/delete-property/ sd-uhs-sdr25;
+		/delete-property/ sd-uhs-sdr12;
+	
+		status = "okay";
+	};
+	
+	/* Serial console inherited from the H96/HT2 board configuration. */
+	&uart0 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&uart0m0_xfer>;
+		status = "okay";
+	};
+	
+	/* Preserve the known H96 PWM routing. */
+	&pwm0 {
+		status = "disabled";
+	};
+	
+	&pwm1 {
+		status = "disabled";
+	};
+	
+	&pwm2 {
+		status = "okay";
+	};
+	
+	&pwm3 {
+		status = "disabled";
+	};
+	
+	&pwm4 {
+		status = "okay";
+	};
+	
+	&pwm7 {
+		status = "okay";
+	};
+	
+	/* Mainline RK3528 display pipeline. */
+	&vop {
+		status = "okay";
+	};
+	
+	&vdec_mmu {
+		status = "okay";
+	};
+	
+	&vdec {
+		status = "okay";
+	};
+	
+	&gpu {
+		mali-supply = <&vdd_gpu>;
+		status = "okay";
+	};
+	
+	&sai2 {
+		status = "okay";
+	};
+	
+	&acodec {
+		pa-ctl-gpios = <&gpio0 RK_PA0 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+	};
+	
+	&sai3 {
+		status = "okay";
+	};
+	
+	&spdif {
+		pinctrl-names = "default";
+		pinctrl-0 = <&spdifm0_pins>;
+		status = "okay";
+	};
+	
+	/*
+	 * GPIO0_A2 is HPD in the original Android DTB.
+	 * Keep it muxed as GPIO; the RK3528 HDMI driver reads it and mirrors
+	 * the state into VO GRF sink-detect.
+	 */
+	&pinctrl {
+		hdmi {
+			hdmi_gpio_hpd_pins: hdmi-gpio-hpd-pins {
+				rockchip,pins =
+					<0 RK_PA3 1 &pcfg_pull_none>,
+					<0 RK_PA2 0 &pcfg_pull_none>,
+					<0 RK_PA4 1 &pcfg_pull_none>,
+					<0 RK_PA5 1 &pcfg_pull_none>;
+			};
+		};
+	};
+	
+	&hdmi {
+		avdd-0v9-supply = <&vdd_0v9_s3>;
+		avdd-1v8-supply = <&vdd_1v8_s3>;
+		hpd-gpios = <&gpio0 RK_PA2 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&hdmi_gpio_hpd_pins>;
+		status = "okay";
+	};
+	
+	&hdmiphy {
+		status = "okay";
+	};
+	
+	/* Enable the RK3528 thermal sensor and hardware thermal shutdown. */
+	&tsadc {
+		status = "okay";
+	};
+	
+	
+	/*
+	 * SeekWave SV6160 / EA6521QF combo chip bootstrap.
+	 * The chip enable (GPIO1_A6) belongs to the SDIO power sequence below.
+	 * The chip must be powered before the MMC core scans the bus.
+	 */
+	/ {
+		seekwcn_boot: seekwcn_boot {
+			compatible = "seekwave,sv6160";
+			dma_type = <1>; /* ADMA */
+			pinctrl-names = "default";
+			pinctrl-0 = <&seekwcn_host_wake>, <&seekwcn_chip_wake>;
+			host-wake-gpios = <&gpio1 RK_PC2 GPIO_ACTIVE_HIGH>;
+			chip-wake-gpios = <&gpio1 RK_PB4 GPIO_ACTIVE_HIGH>;
+			status = "okay";
+		};
+	};
+	
+	/*
+	 * The Linux 6.1 image works only with the stock SDIO power sequence:
+	 * GPIO4_A4 reset line and the 32 kHz clock on GPIO1_C3.
+	 */
+	&pinctrl {
+		seekwcn {
+			seekwcn_host_wake: seekwcn-host-wake {
+				rockchip,pins = <1 RK_PC2 RK_FUNC_GPIO &pcfg_pull_down>;
+			};
+	
+			seekwcn_chip_wake: seekwcn-chip-wake {
+				rockchip,pins = <1 RK_PB4 RK_FUNC_GPIO &pcfg_pull_none>;
+			};
+		};
+	
+		sdio-pwrseq {
+			wifi_enable_h: wifi-enable-h {
+				rockchip,pins = <4 RK_PA4 RK_FUNC_GPIO &pcfg_pull_none>;
+			};
+		};
+	};
+	
+	&{/} {
+		sdio_pwrseq: sdio-pwrseq {
+			compatible = "mmc-pwrseq-simple";
+			pinctrl-names = "default";
+			pinctrl-0 = <&wifi_enable_h>, <&clkm1_32k_out>;
+			reset-gpios = <&gpio4 RK_PA4 GPIO_ACTIVE_LOW>,
+				      <&gpio1 RK_PA6 GPIO_ACTIVE_LOW>;
+			post-power-on-delay-ms = <100>;
+		};
+	};
+	
+	/* SDIO0 at 0xffc10000; keep the inherited RK3528 bus pinctrl groups. */
+	&sdio0 {
+		mmc-pwrseq = <&sdio_pwrseq>;
+		bus-width = <4>;
+		max-frequency = <50000000>;
+		cap-sdio-irq;
+		keep-power-in-suspend;
+		non-removable;
+		no-sd;
+		no-mmc;
+		disable-wp;
+		/delete-property/ sd-uhs-sdr104;
+		/delete-property/ sd-uhs-sdr50;
+		/delete-property/ sd-uhs-sdr25;
+		/delete-property/ sd-uhs-sdr12;
+		status = "okay";
+	};
+	
+	/* USB 2.0 ports. Supplies are the stock vcc5v0_host and vcc5v0_otg GPIOs. */
+	&pinctrl {
+		usb {
+			usb_host_en: usb-host-en {
+				rockchip,pins = <4 RK_PB5 RK_FUNC_GPIO &pcfg_pull_none>;
+			};
+	
+			usb_otg_en: usb-otg-en {
+				rockchip,pins = <4 RK_PC1 RK_FUNC_GPIO &pcfg_pull_none>;
+			};
+		};
+	};
+	
+	&{/} {
+		vcc5v0_host: regulator-vcc5v0-host {
+			compatible = "regulator-fixed";
+			regulator-name = "vcc5v0_host";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			enable-active-high;
+			gpio = <&gpio4 RK_PB5 GPIO_ACTIVE_HIGH>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&usb_host_en>;
+			regulator-always-on;
+			regulator-boot-on;
+			vin-supply = <&vcc5v0_sys>;
+		};
+	
+		vcc5v0_otg: regulator-vcc5v0-otg {
+			compatible = "regulator-fixed";
+			regulator-name = "vcc5v0_otg";
+			regulator-min-microvolt = <5000000>;
+			regulator-max-microvolt = <5000000>;
+			enable-active-high;
+			gpio = <&gpio4 RK_PC1 GPIO_ACTIVE_HIGH>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&usb_otg_en>;
+			regulator-always-on;
+			regulator-boot-on;
+			vin-supply = <&vcc5v0_sys>;
+		};
+	};
+	
+	&usb2phy {
+		status = "okay";
+	};
+	
+	&usb2phy_host {
+		phy-supply = <&vcc5v0_host>;
+		status = "okay";
+	};
+	
+	&usb2phy_otg {
+		phy-supply = <&vcc5v0_otg>;
+		status = "okay";
+	};
+	
+	&usb_host0_ehci {
+		status = "okay";
+	};
+	
+	&usb_host0_ohci {
+		status = "okay";
+	};
+	
+	&usb_host0_xhci {
+		dr_mode = "host";
+		maximum-speed = "high-speed";
+		phys = <&usb2phy_otg>;
+		phy-names = "usb2-phy";
+		status = "okay";
+	};
+	
+	/*
+	 * Front panel. Pins come from the stock Android DT:
+	 * fd655_dev clk GPIO4_C3, dat GPIO4_C4; IR receiver on GPIO4_C6 (pwm3_m0).
+	 */
+	&pinctrl {
+		frontpanel {
+			fd6551_pins: fd6551-pins {
+				rockchip,pins = <4 RK_PC3 RK_FUNC_GPIO &pcfg_pull_up>,
+						<4 RK_PC4 RK_FUNC_GPIO &pcfg_pull_up>;
+			};
+	
+			ir_rx_pin: ir-rx-pin {
+				rockchip,pins = <4 RK_PC6 RK_FUNC_GPIO &pcfg_pull_none>;
+			};
+		};
+	};
+	
+	&{/} {
+		i2c_fd6551: i2c-fd6551 {
+			compatible = "i2c-gpio";
+			pinctrl-names = "default";
+			pinctrl-0 = <&fd6551_pins>;
+			sda-gpios = <&gpio4 RK_PC3 GPIO_ACTIVE_HIGH>;
+			scl-gpios = <&gpio4 RK_PC4 GPIO_ACTIVE_HIGH>;
+			i2c-gpio,sda-output-only;
+			i2c-gpio,scl-output-only;
+			i2c-gpio,delay-us = <20>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+	
+			/* Grid 0 holds the icons; grids 1-4 hold digits, rightmost first. */
+			display@24 {
+				compatible = "fdhisi,fd6551";
+				reg = <0x24>;
+	
+				digits {
+					#address-cells = <1>;
+					#size-cells = <0>;
+	
+					digit@0 {
+						reg = <0>;
+						segments = <4 0>, <4 1>, <4 2>, <4 3>, <4 4>, <4 5>, <4 6>;
+					};
+					digit@1 {
+						reg = <1>;
+						segments = <3 0>, <3 1>, <3 2>, <3 3>, <3 4>, <3 5>, <3 6>;
+					};
+					digit@2 {
+						reg = <2>;
+						segments = <2 0>, <2 1>, <2 2>, <2 3>, <2 4>, <2 5>, <2 6>;
+					};
+					digit@3 {
+						reg = <3>;
+						segments = <1 0>, <1 1>, <1 2>, <1 3>, <1 4>, <1 5>, <1 6>;
+					};
+				};
+	
+				leds {
+					#address-cells = <2>;
+					#size-cells = <0>;
+	
+					led@0,0 {
+						reg = <0 0>;
+						function = LED_FUNCTION_ALARM;
+					};
+					led@0,1 {
+						reg = <0 1>;
+						function = LED_FUNCTION_USB;
+					};
+					led@0,2 {
+						reg = <0 2>;
+						function = "pause";
+					};
+					led@0,3 {
+						reg = <0 3>;
+						function = "play";
+					};
+					led@0,4 {
+						reg = <0 4>;
+						function = "colon";
+					};
+					led@0,5 {
+						reg = <0 5>;
+						function = LED_FUNCTION_LAN;
+					};
+					led@0,6 {
+						reg = <0 6>;
+						function = LED_FUNCTION_WLAN;
+					};
+				};
+			};
+		};
+	
+		ir_receiver: ir-receiver {
+			compatible = "gpio-ir-receiver";
+			pinctrl-names = "default";
+			pinctrl-0 = <&ir_rx_pin>;
+			gpios = <&gpio4 RK_PC6 GPIO_ACTIVE_LOW>;
+			linux,rc-map-name = "rc-empty";
+		};
+	};
+1,042 changes: 1,042 additions & 0 deletions 1,042
+patch/kernel/archive/rockchip64-7.3/rk35xx-rk3528-audio-codec.patch
+1,073 changes: 1,073 additions & 0 deletions 1,073
+patch/kernel/archive/rockchip64-7.3/rk35xx-rk3528-display-hdmi-vop2.patch
+26 changes: 26 additions & 0 deletions 26
+patch/kernel/archive/rockchip64-7.3/rk35xx-rk3528-rkvdec.patch
+187 changes: 187 additions & 0 deletions 187
+patch/kernel/archive/rockchip64-7.3/rk35xx-rk3528-video-bindings.patch

@@ -1,8 +1,5 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 
-// TODO:    /include/dt-bindings/clock/rockchip,rk3506-cru.h
-
-
 #include <dt-bindings/clock/rockchip,rk3528-cru.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
@@ -11,8 +8,11 @@
 #include <dt-bindings/pinctrl/rockchip.h>
 #include <dt-bindings/power/rockchip,rk3528-power.h>
 #include <dt-bindings/reset/rockchip,rk3528-cru.h>
-
+#include <dt-bindings/soc/rockchip,vop2.h>
 #include <dt-bindings/soc/rockchip,boot-mode.h>
+
+
+
 //#include <dt-bindings/soc/rockchip-system-status.h>
 //#include <dt-bindings/suspend/rockchip-rk3528.h>
 #include <dt-bindings/thermal/thermal.h>
@@ -21,12 +21,9 @@
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/usb/pd.h>
 
-////////////////#define CLK_NR_GRF_CLKS              411
-
 / {
 	compatible = "rockchip,rk3528";
 
-	
 	dfi: dfi@ff930000 {
 		reg = <0x0 0xff930000 0x0 0x400>;
 		compatible = "rockchip,rk3528-dfi";
@@ -99,12 +96,24 @@
 			opp-microvolt-L4 = <862500 862500 1000000>;
 			status = "disabled";
 		};
+		log_leakage: log-leakage@1b {
+			reg = <0x1b 0x1>;
+		};
+		dmc_opp_info: dmc-opp-info@3e {
+			reg = <0x3e 0x6>;
+		};
+		logic_mbist_vmin: logic-mbist-vmin@9 {
+			reg = <0x09 0x1>;
+			bits = <5 2>;
+		};
 	};
 
 	mpp_srv: mpp-srv {
 		compatible = "rockchip,mpp-service";
 		rockchip,taskqueue-count = <5>;
 		rockchip,resetgroup-count = <5>;
+		rockchip,iommu-shared-mask = <0x420a>;
+
 		status = "disabled";
 	};
 
@@ -137,77 +146,7 @@
 		>;
 	};
 
-	otp: otp@ffce0000 {
-		compatible = "rockchip,rk3528-otp";
-		reg = <0x0 0xffce0000 0x0 0x4000>;
-		#address-cells = <1>;
-		#size-cells = <1>;
-		clocks = <&cru CLK_USER_OTPC_NS>, <&cru CLK_SBPI_OTPC_NS>,
-			 <&cru PCLK_OTPC_NS>;
-		clock-names = "usr", "sbpi", "apb";
-		resets = <&cru SRST_USER_OTPC_NS>, <&cru SRST_SBPI_OTPC_NS>,  <&cru SRST_P_OTPC_NS>;
-		reset-names = "usr", "sbpi", "apb";
 
-		/* Data cells */
-		cpu_code: cpu-code@2 {
-			reg = <0x02 0x2>;
-		};
-		otp_cpu_version: cpu-version@8 {
-			reg = <0x08 0x1>;
-			bits = <3 3>;
-		};
-		cpu_mbist_vmin: cpu-mbist-vmin@9 {
-			reg = <0x09 0x1>;
-			bits = <0 3>;
-		};
-		gpu_mbist_vmin: gpu-mbist-vmin@9 {
-			reg = <0x09 0x1>;
-			bits = <3 2>;
-		};
-		logic_mbist_vmin: logic-mbist-vmin@9 {
-			reg = <0x09 0x1>;
-			bits = <5 2>;
-		};
-		otp_id: id@a {
-			reg = <0x0a 0x10>;
-		};
-		cpu_leakage: cpu-leakage@1a {
-			reg = <0x1a 0x1>;
-		};
-		log_leakage: log-leakage@1b {
-			reg = <0x1b 0x1>;
-		};
-		gpu_leakage: gpu-leakage@1c {
-			reg = <0x1c 0x1>;
-		};
-		test_version: test-version@29 {
-			reg = <0x29 0x1>;
-		};
-		macphy_bgs: macphy-bgs@2d {
-			reg = <0x2d 0x1>;
-		};
-		macphy_txlevel: macphy-txlevel@2e {
-			reg = <0x2e 0x2>;
-		};
-		vdac_out_current: vdac-out-current@30 {
-			reg = <0x30 0x1>;
-		};
-		cpu_opp_info: cpu-opp-info@32 {
-			reg = <0x32 0x6>;
-		};
-		gpu_opp_info: gpu-opp-info@38 {
-			reg = <0x38 0x6>;
-		};
-		dmc_opp_info: dmc-opp-info@3e {
-			reg = <0x3e 0x6>;
-		};
-		cpu_tsadc_trim_l: cpu-tsadc-trim-l@44 {
-			reg = <0x44 0x1>;
-		};
-		cpu_tsadc_trim_h: cpu-tsadc-trim-h@45 {
-			reg = <0x45 0x1>;
-		};
-	};
 
 	arm-pmu {
 		compatible = "arm,cortex-a53-pmu";
@@ -248,6 +187,7 @@
 		compatible = "rockchip,video-tunnel";
 		status = "disabled";
 	};
+
 
 	sram: sram@fe480000 {
 		compatible = "mmio-sram";
@@ -337,6 +277,9 @@
 			opp-microvolt = <875000 875000 1000000>;
 			opp-microvolt-L1 = <850000 850000 1000000>;
 		};
+//		log_leakage: log-leakage@1b {
+//			reg = <0x1b 0x1>;
+//		};
 	};
 
 
@@ -688,8 +631,18 @@ rkvdec_mmu: iommu@ff740800 {
 				};
 			};
 		};
-
-
+		vdac_out_current: vdac-out-current@30 {
+			reg = <0x30 0x1>;
+		};
+		test_version: test-version@29 {
+			reg = <0x29 0x1>;
+		};
+		cpu_tsadc_trim_l: cpu-tsadc-trim-l@44 {
+			reg = <0x44 0x1>;
+		};
+		cpu_tsadc_trim_h: cpu-tsadc-trim-h@45 {
+			reg = <0x45 0x1>;
+		};
 	};
 
 	hdcp2: hdcp2@ff8c0000 {
@@ -745,16 +698,6 @@ rkvdec_mmu: iommu@ff740800 {
 			};
 		};
 	};
-
-	dfi@ff930000 {
-		reg = <0x00 0xff930000 0x00 0x400>;
-		compatible = "rockchip,rk3528-dfi";
-		rockchip,grf = <&grf>;
-		status = "okay";
-		phandle = <0x18>;
-	};
-
-
 
 	sai3: sai@ffb70000 {
 		compatible = "rockchip,rk3528-sai", "rockchip,sai-v1";
@@ -864,7 +807,7 @@ rkvdec_mmu: iommu@ff740800 {
 		clock-names = "pclk", "timer";
 	};
 
-	wdt: watchdog@ffac0000 {
+/*	wdt: watchdog@ffac0000 {
 		compatible = "snps,dw-wdt";
 		reg = <0x0 0xffac0000 0x0 0x100>;
 		clocks = <&cru TCLK_WDT_NS>, <&cru PCLK_WDT_NS>;
@@ -886,13 +829,13 @@ rkvdec_mmu: iommu@ff740800 {
 		reset-names = "tsadc", "tsadc-apb";
 		#thermal-sensor-cells = <1>;
 		rockchip,hw-tshut-temp = <120000>;
-		rockchip,hw-tshut-mode = <0>; /* tshut mode 0:CRU 1:GPIO */
-		rockchip,hw-tshut-polarity = <0>; /* tshut polarity 0:LOW 1:HIGH */
+		rockchip,hw-tshut-mode = <0>; // tshut mode 0:CRU 1:GPIO 
+		rockchip,hw-tshut-polarity = <0>; // tshut polarity 0:LOW 1:HIGH
 		nvmem-cells = <&cpu_tsadc_trim_l>, <&cpu_tsadc_trim_h>;
 		nvmem-cell-names = "trim_l", "trim_h";
 		status = "disabled";
 	};
-
+*/
 	sai3: sai@ffb70000 {
 		compatible = "rockchip,rk3528-sai", "rockchip,sai-v1";
 		reg = <0x0 0xffb70000 0x0 0x1000>;
@@ -1056,10 +999,4 @@ rkvdec_mmu: iommu@ff740800 {
 		status = "disabled";
 	};
 
-
-
-
-
 };
-
-
